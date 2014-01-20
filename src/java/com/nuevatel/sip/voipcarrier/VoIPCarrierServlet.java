@@ -4,7 +4,9 @@
  */
 
 package com.nuevatel.sip.voipcarrier;
-import com.nuevatel.base.appconn.AppClient;;
+import com.nuevatel.base.appconn.AppClient;import java.io.IOException;
+import javax.servlet.sip.ServletParseException;
+;
 import com.nuevatel.cf.appconn.CFMessage;
 import com.nuevatel.base.appconn.TaskSet;
 import java.io.File;
@@ -242,6 +244,13 @@ public class VoIPCarrierServlet extends javax.servlet.sip.SipServlet implements 
             other.send();
         }
     }
+
+//    @Override
+//    public void doRegister (SipServletRequest sipReq) throws IOException, ServletParseException {
+//        //saveContact(sipReq);// Comienza a obtener el tiempo de session.
+//        sipReq.createResponse(SipServletResponse.SC_ACCEPTED).send();
+//    }
+
     @Override protected void doAck(SipServletRequest request) throws IOException{
         B2buaHelper b2b = request.getB2buaHelper();
         SipSession ss = b2b.getLinkedSession(request.getSession());

@@ -23,3 +23,6 @@ dist/
 # Test CFI folders
 /bulk/*
 /log/*
+
+# Especific for voipcarrier
+config.xml

@@ -6,6 +6,7 @@
 package com.nuevatel.sip.voipcarrier;
 import com.nuevatel.base.appconn.AppClient;import java.io.IOException;
 import javax.servlet.sip.ServletParseException;
+import javax.servlet.sip.SipServlet;
 ;
 import com.nuevatel.cf.appconn.CFMessage;
 import com.nuevatel.base.appconn.TaskSet;
@@ -35,26 +36,33 @@ import javax.servlet.sip.URI;
 
 
 /**
- *
+ * 
  * @author luis
  */
-@javax.servlet.sip.annotation.SipServlet(loadOnStartup=1)
+@javax.servlet.sip.annotation.SipServlet(loadOnStartup = 1)
 @javax.servlet.sip.annotation.SipListener
-public class VoIPCarrierServlet extends javax.servlet.sip.SipServlet implements SipApplicationSessionListener{
+public class VoIPCarrierServlet extends SipServlet implements SipApplicationSessionListener{
 
     private static final long serialVersionUID = 3978425801979081269L;
-    //Reference to context - The ctx Map is used as a central storage for this app
-    javax.servlet.ServletContext ctx = null;
 
     private Properties voipCarrierProperties = new Properties();
+
     private Properties appClientProperties = new Properties();
+
     private AppClient appClient;
+
     private int localId;
+
     private int remoteId;
+
     private int carrierPrefixSize;
+
     private String hubbingPrefix;
+
     private String cellGlobalId;
+
     private String anonymousMask;
+
     private ArrayList<String> trustedServers = new ArrayList<String>();
 
     public VoIPCarrierServlet(){
@@ -63,7 +71,7 @@ public class VoIPCarrierServlet extends javax.servlet.sip.SipServlet implements 
     
     @Override public void init(javax.servlet.ServletConfig config) throws javax.servlet.ServletException {
         super.init(config);
-        ctx = config.getServletContext();
+
         System.out.println("executing init method!");
         try{
             //load properties
@@ -99,7 +107,8 @@ public class VoIPCarrierServlet extends javax.servlet.sip.SipServlet implements 
         }
     }
 
-    @Override public void destroy(){
+    @Override
+    public void destroy(){
         try{
             appClient.interrupt();
         }

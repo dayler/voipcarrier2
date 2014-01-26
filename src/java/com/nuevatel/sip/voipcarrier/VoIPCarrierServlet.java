@@ -4,10 +4,7 @@
  */
 
 package com.nuevatel.sip.voipcarrier;
-import com.nuevatel.base.appconn.AppClient;import java.io.IOException;
-import javax.servlet.sip.ServletParseException;
-import javax.servlet.sip.SipServlet;
-;
+import com.nuevatel.base.appconn.AppClient;import javax.servlet.sip.SipServlet;
 import com.nuevatel.cf.appconn.CFMessage;
 import com.nuevatel.base.appconn.TaskSet;
 import java.io.File;
@@ -69,7 +66,8 @@ public class VoIPCarrierServlet extends SipServlet implements SipApplicationSess
         System.out.println("starting!");
     }
     
-    @Override public void init(javax.servlet.ServletConfig config) throws javax.servlet.ServletException {
+    @Override
+    public void init(javax.servlet.ServletConfig config) throws javax.servlet.ServletException {
         super.init(config);
 
         System.out.println("executing init method!");
@@ -117,15 +115,20 @@ public class VoIPCarrierServlet extends SipServlet implements SipApplicationSess
         }
     }
 
-    @Override protected void doRequest (SipServletRequest request) throws IOException, ServletException{
+    @Override
+    protected void doRequest (SipServletRequest request) throws IOException, ServletException{
+        // TODO Instead call object just set the call id, and get the call instance usign cahehandler
         Call call = (Call)request.getApplicationSession().getAttribute("call");
+
         if (request.isInitial() || request.getMethod().equals("ACK") || request.getMethod().equals("CANCEL")) {
             super.doRequest(request); //Handled by the normal doXXX methods
         }
-        //Logic is call-status based. for clarity's sake
+        // Logic is call-status based. for clarity's sake
+        // TODO Check, what happens if the condition is negative
         else if (call.getStatus()<Call.MEDIA_CALL_INITIALIZED){ //if there's no media session involved
             B2buaHelper b2b = request.getB2buaHelper();
             SipSession linked = b2b.getLinkedSession(request.getSession());
+
             if (linked!=null){
                 SipServletRequest other = b2b.createRequest(linked, request, null);
                 copyContent(request, other);
@@ -140,14 +143,14 @@ public class VoIPCarrierServlet extends SipServlet implements SipApplicationSess
                  request.createResponse(SipServletResponse.SC_OK).send();
             }
 
-            if (request.getMethod().equals("BYE")){
+            if (request.getMethod().equals("BYE")) {
                 call.setEndType(SipServletResponse.SC_OK);
                 call.setEndRequestParty(request.getFrom().getURI());
                 call.setEndDate(new Date());
                 call.setStatus(Call.CALL_ENDED);
-                
             }
             else if (request.getMethod().equals("INVITE") && !request.isInitial()){
+                // TODO Move this logic to do invite.
                 if (!call.isOnHold()){
                     call.setOnHold(true);
                     call.setStatus(Call.CALL_ON_HOLD);
@@ -160,28 +163,36 @@ public class VoIPCarrierServlet extends SipServlet implements SipApplicationSess
         }
     }
 
-    @Override protected void doResponse (SipServletResponse response) throws IOException{
+    @Override
+    protected void doResponse (SipServletResponse response) throws IOException{
+        // TODO Instead call object just set the call id, and get the call instance usign cahehandler
         Call call = (Call)response.getApplicationSession().getAttribute("call");
-        if (response.getStatus() == SipServletResponse.SC_REQUEST_TERMINATED) return; //487 already sent on Cancel for initial leg UAS
+        int responseStatus = response.getStatus();
+
+        if (responseStatus == SipServletResponse.SC_REQUEST_TERMINATED){
+            return; //487 already sent on Cancel for initial leg UAS
+        }
+
+        // TODO Check, what happens if the condition is negative
         if (call.getStatus() < Call.MEDIA_CALL_INITIALIZED) { //if there's no media session involved
             B2buaHelper b2b = response.getRequest().getB2buaHelper();
             SipSession linked = b2b.getLinkedSession(response.getSession());
             SipServletResponse other = null;
-            if (response.getStatus() > SipServletResponse.SC_OK) {
+            if (responseStatus > SipServletResponse.SC_OK) {
                 //final response. cut call
-                call.setEndType(response.getStatus());
+                call.setEndType(responseStatus);
                 call.setEndDate(new Date());
                 call.setStatus(Call.CALL_ENDED);
                 
             }
             if (response.getRequest().isInitial()) {
                 // Handled separately due to possibility of forking and multiple SIP 200 OK responses
-                other = b2b.createResponseToOriginalRequest(linked, response.getStatus(), response.getReasonPhrase());
+                other = b2b.createResponseToOriginalRequest(linked, responseStatus, response.getReasonPhrase());
             }
-            else if (response.getStatus() != SipServletResponse.SC_NOT_FOUND && linked!=null) {
+            else if (responseStatus != SipServletResponse.SC_NOT_FOUND && linked!=null) {
                 //Other responses than to initial request
                 SipServletRequest otherReq = b2b.getLinkedSipServletRequest(response.getRequest());
-                other = otherReq.createResponse(response.getStatus(), response.getReasonPhrase());
+                other = otherReq.createResponse(responseStatus,response.getReasonPhrase());
                 
             }
             if (other != null) {
@@ -238,7 +249,9 @@ public class VoIPCarrierServlet extends SipServlet implements SipApplicationSess
             other.setRequestURI(call.getCallee());
             other.getFrom().setURI(call.getCaller());
             other.getTo().setURI(call.getCallee());
+
             if (!isRequestTrusted(other, trustedServers)){
+
                 String privacy = other.getHeader("Privacy");
                 if (privacy!=null && !privacy.contains("none")){
                     other.removeHeader("P-Asserted-Identity");

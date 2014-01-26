@@ -17,12 +17,15 @@ public class CacheHandler {
     /**
      * the CacheHandler Object
      */
-    private static CacheHandler cacheHandler;
+    private final static CacheHandler cacheHandler = new CacheHandler();
+
     private ConcurrentHashMap<String, Call> callsMap = new ConcurrentHashMap<String, Call>();
+
     private ScheduledThreadPoolExecutor testSessionAsynRetPool = new ScheduledThreadPoolExecutor(2);
 
 
     private CacheHandler(){
+        // No op.
     }
 
     /**
@@ -31,7 +34,6 @@ public class CacheHandler {
      */
 
     public static CacheHandler getCacheHandler(){
-        if (cacheHandler==null) cacheHandler = new CacheHandler();
         return cacheHandler;
     }
 
@@ -39,10 +41,6 @@ public class CacheHandler {
         return callsMap;
     }
 
-    public void setCallsMap(ConcurrentHashMap<String, Call> callsMap){
-        this.callsMap=callsMap;
-    }
-    
     public ScheduledThreadPoolExecutor getTestSessionAsyncRetPool(){
         return testSessionAsynRetPool;
     }

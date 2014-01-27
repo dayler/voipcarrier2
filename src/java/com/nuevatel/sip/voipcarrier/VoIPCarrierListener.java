@@ -171,6 +171,7 @@ public class VoIPCarrierListener implements EventListener{
                 Id id = new Id(call.getCallID(), null);
                 EventArg eventArg = new EventArg(call.getEndType());
                 EventReportCall eventReportCall = new EventReportCall(id, type, eventType, eventArg);
+
                 try{
                     Message eventReportRet = appClient.dispatch(eventReportCall.toMessage());
                     Action action = new Action(eventReportRet.getIE(CFIE.ACTION_IE));
@@ -180,11 +181,15 @@ public class VoIPCarrierListener implements EventListener{
                 } 
 
                 Integer endValue=0;
-                if (call.getEndDate()!=null && call.getStartDate()!=null)
+
+                if (call.getEndDate()!=null && call.getStartDate()!=null) {
                     endValue=(int)(call.getEndDate().getTime()-call.getStartDate().getTime());
+                }
+
                 long watchArg1=0l;
                 WatchArg watchArg = new WatchArg(endValue,watchArg1, null, null, null, null);
                 WatchReportCall watchReportCall = new WatchReportCall(id, Type.WATCH_TYPE.TIME_WATCH.getType(), null, watchArg);
+
                 try{
                     Message watchReportRet = appClient.dispatch(watchReportCall.toMessage());
                     Action action = new Action(watchReportRet.getIE(CFIE.ACTION_IE));

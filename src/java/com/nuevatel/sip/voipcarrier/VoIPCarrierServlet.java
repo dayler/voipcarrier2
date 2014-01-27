@@ -94,7 +94,7 @@ public class VoIPCarrierServlet extends SipServlet
             //load properties
             voipCarrierProperties = loadProperties("/cf/properties/voipcarrier.properties");
             appClientProperties = loadProperties(voipCarrierProperties.getProperty("appClientProperties"));
-            
+
             TaskSet taskSet = new TaskSet();
             taskSet.add(CFMessage.TEST_SESSION_CALL, new TestSessionCallTask());
             taskSet.add(CFMessage.SET_SESSION_CALL, new SetSessionCallTask());
@@ -167,6 +167,8 @@ public class VoIPCarrierServlet extends SipServlet
                 call.setEndRequestParty(request.getFrom().getURI());
                 call.setEndDate(new Date());
                 call.setStatus(Call.CALL_ENDED);
+                // TODO Stop Servlet Listener
+                // stopServletTimer(request.getSession());
             }
             else if (request.getMethod().equals("INVITE") && !request.isInitial()){
                 // TODO Move this logic to do invite.
@@ -202,6 +204,8 @@ public class VoIPCarrierServlet extends SipServlet
                 call.setEndType(responseStatus);
                 call.setEndDate(new Date());
                 call.setStatus(Call.CALL_ENDED);
+                // TODO Stop servlet timer
+                // stopServletTimer(response.getSession());
                 
             }
             if (response.getRequest().isInitial()) {
@@ -285,7 +289,8 @@ public class VoIPCarrierServlet extends SipServlet
             other.send();
 
             // TODO Initialize the timmer.
-            startServletTimmer(request.getApplicationSession(), 20000, 20000, request.getSession().getId(), request.getSession());
+            startServletTimmer(request.getApplicationSession(), 20000, 20000,
+                    request.getSession().getId(), request.getSession());
         }
     }
 
@@ -337,36 +342,28 @@ public class VoIPCarrierServlet extends SipServlet
         copyHeader(request, cancel, "Min-SE");
         copyHeader(request, cancel, "Require");
         cancel.send();
+
+        // TODO Stop timmer
+        stopServletTimer(request.getSession());
     }
 
-//    public void endCall(Call call, int statusCode){
-//        if (call.getPastStatus()==Call.CALL_INITIALIZED){
-//            SipServletRequest initialRequest = call.getInitialRequest();
-//            try {
-//                initialRequest.createResponse(statusCode).send();
-//            } catch (IOException ex) {
-//                ex.printStackTrace();
-//            }
-//        }
-//        else if (call.getPastStatus() == Call.CALL_STARTED || call.getPastStatus() == Call.CALL_KILLED || call.getPastStatus() >= Call.MEDIA_CALL_INITIALIZED){
-//            Iterator i = call.getSipApplicationSession().getSessions();
-//            while (i.hasNext()){
-//                Object o = i.next();
-//                if (o instanceof SipSession){
-//                    SipSession ss = (SipSession)o;
-//                    SipServletRequest bye = ss.createRequest("BYE");
-//                    try {
-//                        ss.setHandler("EndSessionServlet");
-//                        bye.send();
-//                    } catch (IOException ex) {
-//                        ex.printStackTrace();
-//                    } catch (ServletException e){
-//                        e.printStackTrace();
-//                    }
-//                }
-//            }
-//        }
-//    }
+    @Override
+    protected void doErrorResponse(SipServletResponse response) throws ServletException, IOException {
+        // TODO Stop timmer
+        stopServletTimer(response.getSession());
+
+        super.doErrorResponse(response);
+    }
+
+    @Override
+    protected void doBye(SipServletRequest request) throws ServletException, IOException {
+        // TODO Stop timer
+        stopServletTimer(request.getSession());
+
+        super.doBye(request);
+    }
+
+
 
     private void copyContent(SipServletMessage source, SipServletMessage destination) throws IOException {
         if (source.getContentLength()>0){
@@ -435,6 +432,10 @@ public class VoIPCarrierServlet extends SipServlet
         CacheHandler.getCacheHandler().getCallsMap().remove(call.getCallID());
     }
 
+    /**
+     * @inheritDoc
+     */
+    @Override
     public void timeout(ServletTimer sTimer) {
         // TODO Here is the code to notify the appcon with the delta time.
         SipSession session = sTimer.getApplicationSession().getSipSession((String) sTimer.getInfo());
@@ -448,6 +449,7 @@ public class VoIPCarrierServlet extends SipServlet
                 timeSpan, session.getCallId()));
     }
 
+    // TODO replaced by dependency inyection.
 //    private TimerService getTimerService() {
 //        return (TimerService) getServletContext().getAttribute(SipServlet.TIMER_SERVICE);
 //    }

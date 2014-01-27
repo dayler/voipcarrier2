@@ -21,10 +21,14 @@ public class SetSessionCallTask implements Task {
     public Message execute(Conn conn, Message msg) throws Exception {
         SetSessionRet setSessionRet = null;
         SetSessionCall setSessionCall = new SetSessionCall(msg);
+
         if(setSessionCall.getAction().getSessionAction()==Action.SESSION_ACTION.END){
             setSessionRet = new SetSessionRet(AppMessages.ACCEPTED);
             Call call = CacheHandler.getCacheHandler().getCallsMap().get(setSessionCall.getId().getId0());
-            if (call!=null) call.setStatus(Call.CALL_KILLED);
+
+            if (call!=null) {
+                call.setStatus(Call.CALL_KILLED);
+            }
         }
         else setSessionRet = new SetSessionRet(AppMessages.FAILED);
         return setSessionRet.toMessage();

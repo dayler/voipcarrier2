@@ -13,13 +13,14 @@ import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileNotFoundException;
 import java.io.IOException;
+import java.io.Serializable;
 import java.math.BigDecimal;
-import java.math.BigInteger;
 import java.util.ArrayList;
 import java.util.Date;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Properties;
+import javax.annotation.Resource;
 import javax.servlet.ServletException;
 import javax.servlet.sip.B2buaHelper;
 import javax.servlet.sip.SipApplicationSession;
@@ -32,6 +33,7 @@ import javax.servlet.sip.SipServletResponse;
 import javax.servlet.sip.SipSession;
 import javax.servlet.sip.SipURI;
 import javax.servlet.sip.TimerListener;
+import javax.servlet.sip.TimerService;
 import javax.servlet.sip.TooManyHopsException;
 import javax.servlet.sip.UAMode;
 import javax.servlet.sip.URI;
@@ -73,6 +75,11 @@ public class VoIPCarrierServlet extends SipServlet
     private String anonymousMask;
 
     private ArrayList<String> trustedServers = new ArrayList<String>();
+
+    private ServletTimer sTimer = null;
+
+    @Resource
+    private TimerService tService;
 
     public VoIPCarrierServlet(){
         System.out.println("starting!");
@@ -229,7 +236,7 @@ public class VoIPCarrierServlet extends SipServlet
     }
     
     @Override protected void doInvite (SipServletRequest request) throws IOException, TooManyHopsException{
-        
+        // TODO Remove it, it is not longer necesary.
         //for testing only
         if (((SipURI)request.getFrom().getURI()).getUser().contains("70710200")){
             ((SipURI)request.getRequestURI()).setUser("1002"+((SipURI)request.getRequestURI()).getUser());
@@ -276,6 +283,9 @@ public class VoIPCarrierServlet extends SipServlet
             copyHeader(request, other, "Min-SE");
             copyHeader(request, other, "Require");
             other.send();
+
+            // TODO Initialize the timmer.
+            startServletTimmer(request.getApplicationSession(), 20000, 20000, request.getSession().getId(), request.getSession());
         }
     }
 
@@ -427,8 +437,6 @@ public class VoIPCarrierServlet extends SipServlet
 
     public void timeout(ServletTimer sTimer) {
         // TODO Here is the code to notify the appcon with the delta time.
-        String tag = "#timeout#";
-        logger.trace(tag);
         SipSession session = sTimer.getApplicationSession().getSipSession((String) sTimer.getInfo());
         BigDecimal creationTime = new BigDecimal(session.getCreationTime());
         BigDecimal nowTime = new BigDecimal(new Date().getTime());
@@ -436,7 +444,34 @@ public class VoIPCarrierServlet extends SipServlet
 
         // TODO Time to log
         logger.debug(String.format(
-                "%s Time elapsed in milleseconds: %l for the call: %s ", tag,
+                "Time elapsed in milleseconds: %l for the call: %s ",
                 timeSpan, session.getCallId()));
+    }
+
+//    private TimerService getTimerService() {
+//        return (TimerService) getServletContext().getAttribute(SipServlet.TIMER_SERVICE);
+//    }
+
+    private void startServletTimmer(SipApplicationSession applicationSession,
+                                    long startTime,
+                                    long period,
+                                    Serializable srlzbl,
+                                    SipSession session) {
+//        TimerService tService = getTimerService();
+        // TODO Check if fixed-delay and is persistent can be get from config file.
+        sTimer = tService.createTimer(applicationSession, startTime, period, true, false, srlzbl);
+
+        logger.info(String.format(
+                "Servlet Timer was created. Session ID: %s Call ID: %d Start Time: %l Period: %l",
+                session.getId(), session.getCallId(), startTime, period));
+    }
+
+    private void stopServletTimer(SipSession session) {
+        
+        if (sTimer != null) {
+            sTimer.cancel();
+            logger.info(String.format("Servlet Timer was canceled. Session ID: %s Call ID: %s",
+                    session.getId(), session.getCallId()));
+        }
     }
 }

@@ -82,14 +82,15 @@ public class VoIPCarrierServlet extends SipServlet
     private TimerService tService;
 
     public VoIPCarrierServlet(){
-        System.out.println("starting!");
+        // No op
     }
     
     @Override
     public void init(javax.servlet.ServletConfig config) throws javax.servlet.ServletException {
         super.init(config);
 
-        System.out.println("executing init method!");
+        logger.trace("executing init method");
+
         try{
             //load properties
             voipCarrierProperties = loadProperties("/cf/properties/voipcarrier.properties");
@@ -107,17 +108,23 @@ public class VoIPCarrierServlet extends SipServlet
             cellGlobalId = voipCarrierProperties.getProperty("cellGlobalId","500000");
             anonymousMask = voipCarrierProperties.getProperty("anonymousMask","70100000");
             String servers = voipCarrierProperties.getProperty("trustedServers");
+
             if (servers!=null){
                 for (String server : servers.split("\\s+")){
                     trustedServers.add(server);
                 }   
             }
+
             System.out.println("Trusted Servers:"+trustedServers);
-            
+
             appClient = new AppClient(localId, remoteId, taskSet, appClientProperties);
             appClient.start();
-            System.out.println("started AppClient localId:"+localId+" remoteId:"+remoteId +" address:"+appClientProperties.getProperty("address")+" port:"+appClientProperties.getProperty("port")+" size:"+appClientProperties.getProperty("size"));
-//            appClient = new CFClient(localId, cfClientProperties, actionCollection);
+
+            logger.info(String.format(
+                    "Startted AppClient localId: %d remoteId: %d address: %s port: %s size: %s",
+                    localId, remoteId, appClientProperties.getProperty("address"),
+                    appClientProperties.getProperty("port"), appClientProperties.getProperty("size")));
+
         }
         catch(Exception e){
             logger.error("The servlet cannot be initialized.", e);
@@ -127,15 +134,18 @@ public class VoIPCarrierServlet extends SipServlet
     @Override
     public void destroy(){
         try{
+            logger.trace("It is detroying.");
             appClient.interrupt();
         }
         catch(Exception ex){
-            logger.error("The servlet cannot be destroyed.", ex);
+            logger.error("When the appClient is interrupting.", ex);
         }
     }
 
     @Override
     protected void doRequest (SipServletRequest request) throws IOException, ServletException{
+        logger.trace(String.format("doRequest is executing. Session ID: %s", request.getSession().getId()));
+
         // TODO Instead call object just set the call id, and get the call instance usign cahehandler
         Call call = (Call)request.getApplicationSession().getAttribute("call");
 
@@ -186,6 +196,8 @@ public class VoIPCarrierServlet extends SipServlet
 
     @Override
     protected void doResponse (SipServletResponse response) throws IOException{
+        logger.trace(String.format("doResponse is executing. Session ID: %s", response.getSession().getId()));
+
         // TODO Instead call object just set the call id, and get the call instance usign cahehandler
         Call call = (Call)response.getApplicationSession().getAttribute("call");
         int responseStatus = response.getStatus();
@@ -240,6 +252,8 @@ public class VoIPCarrierServlet extends SipServlet
     }
     
     @Override protected void doInvite (SipServletRequest request) throws IOException, TooManyHopsException{
+        logger.trace(String.format("doInvite is executing. Session ID: %s", request.getSession().getId()));
+
         // TODO Remove it, it is not longer necesary.
         //for testing only
         if (((SipURI)request.getFrom().getURI()).getUser().contains("70710200")){
@@ -301,6 +315,8 @@ public class VoIPCarrierServlet extends SipServlet
 //    }
 
     @Override protected void doAck(SipServletRequest request) throws IOException{
+        logger.trace(String.format("doAck is executing. Session ID: %s", request.getSession().getId()));
+
         B2buaHelper b2b = request.getB2buaHelper();
         SipSession ss = b2b.getLinkedSession(request.getSession());
         List<SipServletMessage> msgs = b2b.getPendingMessages(ss, UAMode.UAC);
@@ -331,6 +347,8 @@ public class VoIPCarrierServlet extends SipServlet
     }
 
     @Override protected void doCancel(SipServletRequest request) throws IOException{
+        logger.trace(String.format("doCancel is executing. Session ID: %s", request.getSession().getId()));
+
         Call call = (Call)request.getApplicationSession().getAttribute("call");
         call.setStatus(Call.CALL_CANCELLED);
         B2buaHelper b2b = request.getB2buaHelper();
@@ -349,6 +367,8 @@ public class VoIPCarrierServlet extends SipServlet
 
     @Override
     protected void doErrorResponse(SipServletResponse response) throws ServletException, IOException {
+        logger.trace(String.format("doErrorResponse is executing. Session ID: %s", response.getSession().getId()));
+
         // TODO Stop timmer
         stopServletTimer(response.getSession());
 
@@ -357,6 +377,8 @@ public class VoIPCarrierServlet extends SipServlet
 
     @Override
     protected void doBye(SipServletRequest request) throws ServletException, IOException {
+        logger.trace(String.format("doBye is executing. Session ID: %s", request.getSession().getId()));
+
         // TODO Stop timer
         stopServletTimer(request.getSession());
 

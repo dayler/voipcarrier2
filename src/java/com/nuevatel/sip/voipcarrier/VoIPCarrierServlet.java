@@ -120,7 +120,7 @@ public class VoIPCarrierServlet extends SipServlet
 //            appClient = new CFClient(localId, cfClientProperties, actionCollection);
         }
         catch(Exception e){
-            e.printStackTrace();
+            logger.error("The servlet cannot be initialized.", e);
         }
     }
 
@@ -130,7 +130,7 @@ public class VoIPCarrierServlet extends SipServlet
             appClient.interrupt();
         }
         catch(Exception ex){
-            ex.printStackTrace();
+            logger.error("The servlet cannot be destroyed.", ex);
         }
     }
 
@@ -229,7 +229,7 @@ public class VoIPCarrierServlet extends SipServlet
                     try {
                         other.sendReliably();
                     }catch (Exception ex){
-                        ex.printStackTrace();
+                        logger.error("SipServletResponse can not be send reliably", ex);
                     }
                 }
                 else {

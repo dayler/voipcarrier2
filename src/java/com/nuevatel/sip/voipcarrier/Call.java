@@ -10,8 +10,6 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Date;
 import java.util.Iterator;
-import java.util.logging.Level;
-import java.util.logging.Logger;
 import javax.servlet.ServletException;
 import javax.servlet.sip.ServletParseException;
 import javax.servlet.sip.SipApplicationSession;
@@ -19,6 +17,7 @@ import javax.servlet.sip.SipFactory;
 import javax.servlet.sip.SipServletRequest;
 import javax.servlet.sip.SipSession;
 import javax.servlet.sip.URI;
+import org.apache.log4j.Logger;
 
 /**
  *
@@ -44,6 +43,11 @@ public class Call {
     public static final Integer MEDIA_CALL_JOINING_PARTY_PR     = 57; //Internal use, Do not override in eventListener
     public static final Integer MEDIA_CALL_JOINING_PARTY_ERROR  = 58;
     public static final Integer MEDIA_CALL_CONNECTING_CALL      = 59;
+
+    /**
+     * Application logger
+     */
+    private final static Logger logger = Logger.getLogger(Call.class);
 
     private ArrayList<EventListener> listenersList = new ArrayList<EventListener>();
 
@@ -102,7 +106,8 @@ public class Call {
                 ConversationEvent event = new ConversationEvent(this);
                 fireEvent(event);
             } catch (Exception ex) {
-                Logger.getLogger(Call.class.getName()).log(Level.SEVERE, null, ex);
+               // Logger.getLogger(Call.class.getName()).log(Level.SEVERE, null, ex);
+                logger.error("The status of call cannot be changed.",ex);
             }
         }
     }
@@ -194,7 +199,7 @@ public class Call {
             try {
                 initialRequest.createResponse(statusCode).send();
             } catch (IOException ex) {
-                ex.printStackTrace();
+                logger.error("InitialRequest cannot create a response. ", ex);
             }
         }
         else if (getPastStatus() == Call.CALL_STARTED || getPastStatus() == Call.CALL_KILLED || getPastStatus() >= Call.MEDIA_CALL_INITIALIZED){
@@ -209,9 +214,10 @@ public class Call {
                         ss.setHandler("EndSessionServlet");
                         bye.send();
                     } catch (IOException ex) {
-                        ex.printStackTrace();
+                        logger.error("SipServletRequest cannot be sended. ", ex);
+
                     } catch (ServletException e){
-                        e.printStackTrace();
+                        logger.error("SipServletRequest cannot be sended. ", e);
                     }
                 }
             }

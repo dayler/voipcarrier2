@@ -13,6 +13,7 @@ import com.nuevatel.cf.appconn.Id;
 import com.nuevatel.cf.appconn.TestSessionAsyncRet;
 import com.nuevatel.cf.appconn.TestSessionRet;
 import java.util.concurrent.TimeUnit;
+import org.apache.log4j.Logger;
 
 /**
  *
@@ -21,6 +22,10 @@ import java.util.concurrent.TimeUnit;
 public class TestSessionCallTask implements Task {
     
     private static final Long OFFSET_50MS=50l;
+     /**
+     * Application logger
+     */
+    private final static Logger logger = Logger.getLogger(TestSessionCallTask.class);
 
     public Message execute(Conn conn, Message msg) throws Exception {
         TestSessionRet testSessionRes = null;
@@ -49,7 +54,7 @@ public class TestSessionCallTask implements Task {
                 TestSessionAsyncRet testSessionAsynRet = new TestSessionAsyncRet(id, AppMessages.ACCEPTED);
                 call.getAppClient().dispatch(testSessionAsynRet.toMessage());
             }catch (Exception ex){
-                System.out.println(ex.getMessage());
+                logger.error("TestSessionCallTask cannot be executed. ",ex);
             }
             
         }

@@ -4,13 +4,17 @@
  */
 
 package com.nuevatel.sip.voipcarrier;
-import com.nuevatel.base.appconn.AppClient;import javax.servlet.sip.SipServlet;
+import com.nuevatel.base.appconn.AppClient;
+import javax.servlet.sip.ServletTimer;
+import javax.servlet.sip.SipServlet;
 import com.nuevatel.cf.appconn.CFMessage;
 import com.nuevatel.base.appconn.TaskSet;
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileNotFoundException;
 import java.io.IOException;
+import java.math.BigDecimal;
+import java.math.BigInteger;
 import java.util.ArrayList;
 import java.util.Date;
 import java.util.Iterator;
@@ -27,9 +31,11 @@ import javax.servlet.sip.SipServletRequest;
 import javax.servlet.sip.SipServletResponse;
 import javax.servlet.sip.SipSession;
 import javax.servlet.sip.SipURI;
+import javax.servlet.sip.TimerListener;
 import javax.servlet.sip.TooManyHopsException;
 import javax.servlet.sip.UAMode;
 import javax.servlet.sip.URI;
+import org.apache.log4j.Logger;
 
 
 /**
@@ -38,9 +44,15 @@ import javax.servlet.sip.URI;
  */
 @javax.servlet.sip.annotation.SipServlet(loadOnStartup = 1)
 @javax.servlet.sip.annotation.SipListener
-public class VoIPCarrierServlet extends SipServlet implements SipApplicationSessionListener{
+public class VoIPCarrierServlet extends SipServlet
+        implements SipApplicationSessionListener, TimerListener{
 
     private static final long serialVersionUID = 3978425801979081269L;
+
+    /**
+     * Application logger.
+     */
+    private static Logger logger = Logger.getLogger(VoIPCarrierServlet.class);
 
     private Properties voipCarrierProperties = new Properties();
 
@@ -411,5 +423,20 @@ public class VoIPCarrierServlet extends SipServlet implements SipApplicationSess
     public void sessionReadyToInvalidate(SipApplicationSessionEvent ev) {
         Call call = (Call)ev.getApplicationSession().getAttribute("call");
         CacheHandler.getCacheHandler().getCallsMap().remove(call.getCallID());
+    }
+
+    public void timeout(ServletTimer sTimer) {
+        // TODO Here is the code to notify the appcon with the delta time.
+        String tag = "#timeout#";
+        logger.trace(tag);
+        SipSession session = sTimer.getApplicationSession().getSipSession((String) sTimer.getInfo());
+        BigDecimal creationTime = new BigDecimal(session.getCreationTime());
+        BigDecimal nowTime = new BigDecimal(new Date().getTime());
+        BigDecimal timeSpan = creationTime.subtract(nowTime).abs();
+
+        // TODO Time to log
+        logger.debug(String.format(
+                "%s Time elapsed in milleseconds: %l for the call: %s ", tag,
+                timeSpan, session.getCallId()));
     }
 }

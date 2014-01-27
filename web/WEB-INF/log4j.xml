@@ -9,19 +9,19 @@
         <param name="encoding" value="UTF-8" />
         <!-- Define rolling policy -->
         <rollingPolicy class="org.apache.log4j.rolling.TimeBasedRollingPolicy">
-            <param name="FileNamePattern" value="log/Log4JDemo-Log.%d.log.gz" />
+            <param name="FileNamePattern" value="/Users/asalazar/log/voipcarrier2-log.%d.log.gz" />
         </rollingPolicy>
         <!-- Define layout -->
         <layout class="org.apache.log4j.PatternLayout">
             <!-- The log message pattern -->
-            <param name="ConversionPattern" value="%5p %d{ISO8601} [%t][%x] %c - %m%n" />
+            <param name="ConversionPattern" value="%5p %d{ISO8601} [%t][%x] [%c]#[%M] - %m%n" />
         </layout>
         <!-- <layout class="org.apache.log4j.SimpleLayout"/> -->
     </appender>
     <appender name="console_app" class="org.apache.log4j.ConsoleAppender">
         <layout class="org.apache.log4j.PatternLayout">
             <!-- The log message pattern -->
-            <param name="ConversionPattern" value="%5p %d{ISO8601} [%t][%x] %c - %m%n" />
+            <param name="ConversionPattern" value="%5p %d{ISO8601} [%t][%x] [%c]#[%M] - %m%n" />
         </layout>
     </appender>
     <root>

@@ -8,6 +8,7 @@ Configuration file used to handle global properties for Application.
         <property name="voipcarrier.properties" type="string">/cf/properties/voipcarrier.properties</property>
         <!-- Default timeout  -->
         <property name="app-client.properties" type="string">/cf/properties/voipcarrier.gw1.properties</property>
+        <property name="version">2.0</property>
     </properties>
 </config>
 

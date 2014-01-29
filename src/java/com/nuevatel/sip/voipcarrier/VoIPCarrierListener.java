@@ -134,7 +134,17 @@ public class VoIPCarrierListener implements EventListener {
             Id id = new Id(call.getCallID(), null);
             Type type = new Type(Type.SERVICE_TYPE.SPEECH, Type.REQUEST_TYPE.O);
             EventReportCall eventReportCall = new EventReportCall(id, type, Type.EVENT_TYPE.O_ANSWER_2.getType(), null);
+
+            // TODO
+            logger.trace(String.format("EventReportCall id: %s type: %s eventType: %s eventArgs: null",
+                    id, type, Type.EVENT_TYPE.O_ANSWER_2.getType()));
+            logger.trace(String.format("appClient state: %s remoteId: %s localId: %s",
+                    appClient.getState(), appClient.getRemoteId(), appClient.getLocalId()));
+
             try {
+                /***
+                 * TODO
+                 */
                 Message eventReportRet = appClient.dispatch(eventReportCall.toMessage());
                 Action action = new Action(eventReportRet.getIE(CFIE.ACTION_IE));
                 if (action.getSessionAction() == Action.SESSION_ACTION.ACCEPT) {
@@ -143,13 +153,14 @@ public class VoIPCarrierListener implements EventListener {
                     call.setEndType(SipServletResponse.SC_FORBIDDEN);
                     call.end(SipServletResponse.SC_FORBIDDEN);
                 }
+
                 logger.info(String.format(
                         "eventReportCall: callId:%s eventType:%s result:%s",
                         call.getCallID(), Type.EVENT_TYPE.O_ANSWER_2, action.getSessionAction().name()));
             } catch (Exception ex) {
-                logger.warn(String.format(
-                        "eventReportCall Exception: callId:%s eventType:%s %s",
-                        call.getCallID(), Type.EVENT_TYPE.O_ANSWER_2, ex.getMessage()));
+                logger.error(String.format(
+                        "eventReportCall Exception: callId:%s eventType:%s",
+                        call.getCallID(), Type.EVENT_TYPE.O_ANSWER_2), ex);
                 call.setEndType(SipServletResponse.SC_FORBIDDEN);
                 call.end(SipServletResponse.SC_FORBIDDEN);
             }
@@ -171,9 +182,9 @@ public class VoIPCarrierListener implements EventListener {
                             "eventReportCall: callId:%s eventType:%d result:%s",
                             call.getCallID(), eventType, action.getSessionAction().name()));
                 } catch (Exception ex) {
-                    logger.warn(String.format(
-                            "eventReportCall Exception: callId:%s eventType:%d %s",
-                            call.getCallID(), eventType, ex.getMessage()));
+                    logger.error(String.format(
+                            "eventReportCall Exception: callId:%s eventType: %s",
+                            call.getCallID(), eventType), ex);
                 }
 
                 Integer endValue = 0;
@@ -188,7 +199,7 @@ public class VoIPCarrierListener implements EventListener {
                     Message watchReportRet = appClient.dispatch(watchReportCall.toMessage());
                     Action action = new Action(watchReportRet.getIE(CFIE.ACTION_IE));
                     logger.info(String.format(
-                            "watchReportCall: callId:%s watchType:%d endValue:%d watchArg1:%l result:%s",
+                            "watchReportCall: callId:%s watchType:%d endValue:%d watchArg1:%d result:%s",
                             call.getCallID(), Type.WATCH_TYPE.TIME_WATCH.getType(), endValue, watchArg1, action.getSessionAction().name()));
                 } catch (Exception ex) {
                     logger.warn(String.format(
@@ -216,9 +227,9 @@ public class VoIPCarrierListener implements EventListener {
                         "eventReportCall: callId:%s eventType:%s result:%s",
                         call.getCallID(), Type.EVENT_TYPE.O_ABANDON_1, action.getSessionAction().name()));
             } catch (Exception ex) {
-                logger.warn(String.format(
-                        "eventReportCall Exception: callId:%s eventType:%s %s",
-                        call.getCallID(), Type.EVENT_TYPE.O_ANSWER_2, ex.getMessage()));
+                logger.error(String.format(
+                        "eventReportCall Exception: callId:%s eventType:%s",
+                        call.getCallID(), Type.EVENT_TYPE.O_ANSWER_2), ex);
             }
 
         } else if (call.getStatus() == Call.CALL_ON_HOLD) {

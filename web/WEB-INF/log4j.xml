@@ -4,12 +4,12 @@
     <!-- File appender definition -->
     <appender name="file_txt"
               class="org.apache.log4j.rolling.RollingFileAppender">
-        <param name="File" value="/Users/asalazar/log/voipcarrier2-log.log"/>
+        <param name="File" value="/cf/tmp/voipcarrier2-log.log"/>
         <param name="append" value="true" />
         <param name="encoding" value="UTF-8" />
         <!-- Define rolling policy -->
         <rollingPolicy class="org.apache.log4j.rolling.TimeBasedRollingPolicy">
-            <param name="FileNamePattern" value="/Users/asalazar/log/voipcarrier2-log.%d.log.gz" />
+            <param name="FileNamePattern" value="/cf/tmp/voipcarrier2-log.%d.log.gz" />
         </rollingPolicy>
         <!-- Define layout -->
         <layout class="org.apache.log4j.PatternLayout">

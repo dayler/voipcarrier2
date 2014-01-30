@@ -5,6 +5,8 @@
 
 package com.nuevatel.sip.voipcarrier;
 
+import javax.servlet.sip.SipSessionEvent;
+import javax.servlet.sip.SipSessionListener;
 import com.nuevatel.base.appconn.AppClient;
 import javax.servlet.sip.ServletTimer;
 import javax.servlet.sip.SipServlet;
@@ -21,7 +23,6 @@ import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.Serializable;
 import java.math.BigDecimal;
-import java.util.ArrayList;
 import java.util.Date;
 import java.util.Iterator;
 import java.util.List;
@@ -52,19 +53,28 @@ import org.apache.log4j.Logger;
 import org.w3c.dom.Document;
 import org.xml.sax.SAXException;
 import static com.nuevatel.sip.voipcarrier.helper.VoipConstants.*;
+import static com.nuevatel.common.helper.ClassHelper.*;
 
 
 /**
- * 
- * @author luis
+ * Determines if the communication between caller and callee can be established (is in the network,
+ * have enough credit) and establish it. Notify to VONE how long the call lasted.
+ *
+ * @author luis, asalazar
  */
 @javax.servlet.sip.annotation.SipServlet(loadOnStartup = 1)
 @javax.servlet.sip.annotation.SipListener
 public class VoIPCarrierServlet extends SipServlet
-        implements SipApplicationSessionListener, TimerListener{
+        implements SipApplicationSessionListener, TimerListener, SipSessionListener{
 
+    /**
+     * Path to get the location of the voipcarrier configuration file.
+     */
     private static final String XPATH_VOIPCARRIER_PROPERTIES = "//config/properties/property[@name='voipcarrier.properties']";
 
+    /**
+     * Path to get the location of the app conn configuration file.
+     */
     private static final String XPATH_APPCLIENT_PROPERTIES = "//config/properties/property[@name='app-client.properties']";
 
     /**
@@ -87,33 +97,70 @@ public class VoIPCarrierServlet extends SipServlet
      */
     private static Logger logger = Logger.getLogger(VoIPCarrierServlet.class);
 
+    /**
+     * Common application properties.
+     */
     private Properties voipCarrierProperties = new Properties();
 
+    /**
+     * App conn properties. Used to establish the dialog with VONE.
+     */
     private Properties appClientProperties = new Properties();
 
+    /**
+     * Client to stablish dialog with VONE.
+     */
     private AppClient appClient;
 
+    /**
+     * Application local ID.
+     */
     private int localId;
 
+    /**
+     * Remote ID with which the application is registered.
+     */
     private int remoteId;
 
+    /**
+     * The size of the characters used to identify the carrier in the caller URI.
+     */
     private int carrierPrefixSize;
 
     private String hubbingPrefix;
 
+    /**
+     * Used to communicate with VONE. It is a mock cell ID.
+     */
     private String cellGlobalId;
 
+    /**
+     * Used to identify the caller in case it was unknown.
+     */
     private String anonymousMask;
 
+    /**
+     * Servlet timer, execute periodical tasks to notify the status and duration of the calls.
+     */
     private ServletTimer sTimer = null;
 
+    /**
+     * Factory for the timers.
+     */
     @Resource
     private TimerService tService;
 
+    /**
+     * VoIPCarrierServlet default constructor.
+     */
     public VoIPCarrierServlet(){
         // No op
     }
 
+    /**
+     * {@inheritDoc} 
+     *
+     */
     @Override
     public void init(ServletConfig config) throws ServletException {
         super.init(config);
@@ -161,6 +208,10 @@ public class VoIPCarrierServlet extends SipServlet
         }
     }
 
+    /**
+     * {@inheritDoc}
+     *
+     */
     @Override
     public void destroy(){
         try{
@@ -172,6 +223,10 @@ public class VoIPCarrierServlet extends SipServlet
         }
     }
 
+    /**
+     * {@inheritDoc}
+     *
+     */
     @Override
     protected void doRequest (SipServletRequest request) throws IOException, ServletException{
         logger.trace(String.format("doRequest is executing. Session ID: %s Method: %s",
@@ -202,9 +257,14 @@ public class VoIPCarrierServlet extends SipServlet
 
     }
 
+    /**
+     * {@inheritDoc}
+     *
+     */
     @Override
     protected void doResponse (SipServletResponse response) throws IOException, ServletException{
-        logger.trace(String.format("doResponse is executing. Session ID: %s", response.getSession().getId()));
+        SipSession session = response.getSession();
+        logger.trace(String.format("doResponse is executing. Session ID: %s", session.getId()));
 
         // TODO Instead call object just set the call id, and get the call instance usign cahehandler
         Call call = (Call)response.getApplicationSession().getAttribute("call");
@@ -217,7 +277,7 @@ public class VoIPCarrierServlet extends SipServlet
         // TODO Check, what happens if the condition is negative
         if (call.getStatus() < Call.MEDIA_CALL_INITIALIZED) { //if there's no media session involved
             B2buaHelper b2b = response.getRequest().getB2buaHelper();
-            SipSession linked = b2b.getLinkedSession(response.getSession());
+            SipSession linked = b2b.getLinkedSession(session);
             SipServletResponse other = null;
             if (responseStatus > SipServletResponse.SC_OK) {
                 //final response. cut call
@@ -225,10 +285,8 @@ public class VoIPCarrierServlet extends SipServlet
                 call.setEndDate(new Date());
                 call.setStatus(Call.CALL_ENDED);
 
-                // TODO Remove me!!
-                logger.debug("Call.CALL_ENDED");
-                // TODO Stop servlet timer
-                // stopServletTimer(response.getSession());
+                logger.debug(String.format("Call was ended. CallID: %s SessionID: %s",
+                        session.getCallId(), session.getId()));
                 super.doResponse(response);
             }
             if (response.getRequest().isInitial()) {
@@ -259,6 +317,10 @@ public class VoIPCarrierServlet extends SipServlet
         }
     }
 
+    /**
+     * {@inheritDoc}
+     *
+     */
     @Override
     protected void doInvite (SipServletRequest request) throws IOException, TooManyHopsException{
         logger.trace(String.format("doInvite is executing. Session ID: %s", request.getSession().getId()));
@@ -292,10 +354,6 @@ public class VoIPCarrierServlet extends SipServlet
                 other.getTo().setURI(call.getCallee());
                 copyHeaders(request, other);
                 other.send();
-
-                // Initialize the timmer.
-                startServletTimmer(request.getApplicationSession(), 20000, 20000,
-                        request.getSession().getId(), request.getSession());
             }
 
         } else {
@@ -316,6 +374,10 @@ public class VoIPCarrierServlet extends SipServlet
         }
     }
 
+    /**
+     * {@inheritDoc}
+     *
+     */
     @Override
     protected void doAck(SipServletRequest request) throws IOException{
         logger.trace(String.format("doAck is executing. Session ID: %s", request.getSession().getId()));
@@ -323,28 +385,37 @@ public class VoIPCarrierServlet extends SipServlet
         B2buaHelper b2b = request.getB2buaHelper();
         SipSession ss = b2b.getLinkedSession(request.getSession());
         List<SipServletMessage> msgs = b2b.getPendingMessages(ss, UAMode.UAC);
+
         for (SipServletMessage message:msgs){
+
             if (message instanceof SipServletResponse){
                 SipServletResponse response = (SipServletResponse)message;
+
                 if (response.getStatus()==SipServletResponse.SC_OK){
                     SipServletRequest ack = response.createAck();
                     copyContent(request, ack);
                     copyHeaders(request, ack);
                     ack.send();
-                    if (response.getRequest().isInitial()){
-                        Call call = (Call)request.getApplicationSession().getAttribute("call");
-                        // if there is a media session initialized, start a media session, otherwise start a call
-                        if (call.getStatus()==Call.MEDIA_CALL_INITIALIZED) call.setStatus(Call.MEDIA_CALL_STARTED);
-                        else{
-                            call.setStartDate(new Date());
-                            call.setStatus(Call.CALL_STARTED);
-                        }
+
+                    if (response.getRequest().isInitial()) {
+                        Call call = getCall(request);
+
+                        call.setStartDate(new Date());
+                        call.setStatus(Call.CALL_STARTED);
+
+                        // Initialize the timmer.
+                        startServletTimmer(request.getApplicationSession(), 20000, 20000,
+                                request.getSession().getId(), request.getSession());
                     }
                 }
             }
         }
     }
 
+    /**
+     * {@inheritDoc}
+     *
+     */
     @Override
     protected void doCancel(SipServletRequest request) throws IOException{
         logger.trace(String.format("doCancel is executing. Session ID: %s", request.getSession().getId()));
@@ -358,19 +429,28 @@ public class VoIPCarrierServlet extends SipServlet
         cancel.send();
 
         // Stop timmer
-        stopServletTimer(request.getSession());
+        stopServletTimer(call, request.getSession());
     }
 
+    /**
+     * {@inheritDoc}
+     *
+     */
     @Override
     protected void doErrorResponse(SipServletResponse response) throws ServletException, IOException {
         logger.trace(String.format("doErrorResponse is executing. Session ID: %s", response.getSession().getId()));
-
+        // TODO Test if call can be retrieved.
         // Stop timmer
-        stopServletTimer(response.getSession());
+        Call call = getCall(response);
+        stopServletTimer(call, response.getSession());
 
         super.doErrorResponse(response);
     }
 
+    /**
+     * {@inheritDoc}
+     *
+     */
     @Override
     protected void doBye(SipServletRequest request) throws ServletException, IOException {
         logger.trace(String.format("doBye is executing. Session ID: %s", request.getSession().getId()));
@@ -382,21 +462,73 @@ public class VoIPCarrierServlet extends SipServlet
         call.setStatus(Call.CALL_ENDED);
 
         // Stop timmer.
-        stopServletTimer(request.getSession());
+        stopServletTimer(call, request.getSession());
 
         super.doBye(request);
     }
 
+
+    /**
+     * {@inheritDoc}
+     *
+     */
+    @Override
+    public void sessionCreated(SipSessionEvent sse) {
+        // No op. For log purposes.
+        logger.debug("Session created. TimeSpan: " + new Date());
+    }
+
+    /**
+     * {@inheritDoc}
+     *
+     */
+    @Override
+    public void sessionDestroyed(SipSessionEvent sse) {
+        // No op. For log purposes.
+        logger.debug("Session destroyed. TimeSpan: " + new Date());
+    }
+
+    /**
+     * @inheritDoc
+     */
+    @Override
+    public void sessionReadyToInvalidate(SipSessionEvent arg0) {
+        // No op.
+    }
+
+    /**
+     * @param servletMessage Servlet message used to get the current session, and current call.
+     *
+     * @return Current call associated with the session.
+     */
      private Call getCall(SipServletMessage servletMessage) {
-        Call call = (Call) servletMessage.getApplicationSession().getAttribute(CONTEXT_ATTR_CALL);
+        return getCall(servletMessage.getApplicationSession());
+    }
+
+     /**
+      * @param appSession Used to get the current session, and current call.
+      *
+      * @return Current call associated with the session.
+      */
+    private Call getCall(SipApplicationSession appSession) {
+        Call call = null;
+
+        try {
+            call = castAs(Call.class, appSession.getAttribute(CONTEXT_ATTR_CALL));
+        } catch (IllegalStateException ex) {
+            // Log exception in debug mode
+            logger.debug("Call cannot be retrieved. Session was finalized.", ex);
+        }
+
         return call;
     }
 
     /**
+     * Copy needed headers from Message source to dest message.
      *
+     * @param messageSource The source.
      *
-     * @param messageSource
-     * @param otherMessage
+     * @param otherMessage Dest Message.
      */
     private void copyHeaders(SipServletMessage messageSource, SipServletMessage otherMessage) {
         copyHeader(messageSource, otherMessage, SipHeaders.SUPPORTED);
@@ -406,6 +538,13 @@ public class VoIPCarrierServlet extends SipServlet
         copyHeader(messageSource, otherMessage, SipHeaders.REQUIRE);
     }
 
+    /**
+     * Copy a specific header from source servlet message to target.
+     *
+     * @param source Source Servlet Message.
+     * @param target Target Servlet Message.
+     * @param sipHeader The Header Name to copy.
+     */
     private void copyHeader (SipServletMessage source, SipServletMessage target, SipHeaders sipHeader){
         int count=0;
         String headerName = sipHeader.toString();
@@ -426,16 +565,43 @@ public class VoIPCarrierServlet extends SipServlet
             else target.setHeader("Session-Expires", "100");
         }
         }
-
     }
 
-    private BigDecimal getCallTimeSpan(SipSession session) {
-        BigDecimal creationTime = new BigDecimal(session.getCreationTime());
-        BigDecimal nowTime = new BigDecimal(new Date().getTime());
-        BigDecimal timeSpan = creationTime.subtract(nowTime).abs();
+    /**
+     * 
+     * @param call Current media call in progress.
+     *
+     * @return How long the call lasted, at the time in which this method is called.
+     */
+    private BigDecimal getCallTimeSpan(Call call) {
+        Date referenceEndDate = new Date();
+
+        if (call == null) {
+            return BigDecimal.ZERO;
+        }
+
+        long referenceEndTime;
+
+        if (!Call.CALL_ENDED.equals(call.getStatus()) || call.getEndDate() == null) {
+            // If the call still in progress.
+            referenceEndTime = referenceEndDate.getTime();
+        } else {
+            referenceEndTime = call.getEndDate().getTime();
+        }
+
+        BigDecimal creationTime = new BigDecimal(call.getStartDate().getTime());
+        BigDecimal endTime = new BigDecimal(referenceEndTime);
+        BigDecimal timeSpan = creationTime.subtract(endTime).abs();
+
         return timeSpan;
     }
 
+    /**
+     * Load voipcarrier common properties.
+     *
+     * @throws NumberFormatException When one or more properties that are expecting decimal numbers
+     * are incorrect.
+     */
     private void loadVoipCarrierProperties() throws NumberFormatException {
         //set variables
         localId = Integer.valueOf(voipCarrierProperties.getProperty("localId", "500"));
@@ -446,9 +612,16 @@ public class VoIPCarrierServlet extends SipServlet
         anonymousMask = voipCarrierProperties.getProperty("anonymousMask", "70100000");
     }
 
+    /**
+     *
+     * @return XML HASH with config xml configuration.
+     *
+     * @throws SAXException
+     * @throws ParserConfigurationException
+     * @throws IOException
+     */
     private XmlHash getConfigXmlHash() throws SAXException, ParserConfigurationException, IOException {
-        // Load config.xml
-        // Get global configuration.
+        // Load config.xml. Get global configuration.
         String relativePath = getServletContext().getRealPath(ROOT_PATH);
         String configFile = CONFIG_XML;
         DocumentBuilderFactory builderFactory = DocumentBuilderFactory.newInstance();
@@ -459,6 +632,14 @@ public class VoIPCarrierServlet extends SipServlet
         return confXmlHash;
     }
 
+    /**
+     * Copy the content of Servlet Message to other Servlet Message.
+     *
+     * @param source Source from copy.
+     * @param destination Target to copy.
+     *
+     * @throws IOException When cannot be read or copy the content.
+     */
     private void copyContent(SipServletMessage source, SipServletMessage destination) throws IOException {
         if (source.getContentLength()>0){
             destination.setContent(source.getContent(), source.getContentType());
@@ -469,38 +650,69 @@ public class VoIPCarrierServlet extends SipServlet
         }
     }
 
+    /**
+     * Read property file, from path.
+     *
+     * @param filePath Path to get the property file.
+     *
+     * @return Property object with the content of property file.
+     *
+     * @throws FileNotFoundException The file was not found.
+     * @throws IOException The file cannot be read.
+     */
     private Properties loadProperties(String filePath) throws FileNotFoundException, IOException{
-        File file = new File(filePath);
-        Properties properties = new Properties();
-        FileInputStream fis = new FileInputStream(file);
-        properties.load(fis);
-        return properties;
-    }
-    
-    private boolean isRequestTrusted(SipServletRequest request, ArrayList<String> trustedServers){
-        boolean result = false;
-        String pAssertedIdentity = request.getHeader("P-Asserted-Identity");
-        if (pAssertedIdentity!=null){
-            for (String server : trustedServers){
-                if (pAssertedIdentity.contains(server)) result=true;
+        FileInputStream fis = null;
+
+        try {
+            File file = new File(filePath);
+            Properties properties = new Properties();
+            fis = new FileInputStream(file);
+            properties.load(fis);
+
+            return properties;
+        } finally {
+            if (fis != null) {
+                fis.close();
             }
         }
-        return result;
     }
 
+    /**
+     * {@inheritDoc}
+     *
+     */
+    @Override
     public void sessionCreated(SipApplicationSessionEvent ev) {
+        // No op.
     }
 
+    /**
+     * {@inheritDoc}
+     *
+     */
+    @Override
     public void sessionDestroyed(SipApplicationSessionEvent ev) {
+        // No op.
     }
 
+    /**
+     * {@inheritDoc}
+     *
+     */
     public void sessionExpired(SipApplicationSessionEvent ev) {
-        SipApplicationSession sas=ev.getApplicationSession();
-        if (sas.isValid()) sas.setExpires(3);
+        SipApplicationSession appSession=ev.getApplicationSession();
+
+        if (appSession.isValid()) {
+            appSession.setExpires(3);
+        }
     }
 
+    /**
+     * {@inheritDoc}
+     *
+     */
     public void sessionReadyToInvalidate(SipApplicationSessionEvent ev) {
-        Call call = (Call)ev.getApplicationSession().getAttribute("call");
+        Call call = getCall(ev.getApplicationSession());
         CacheHandler.getCacheHandler().getCallsMap().remove(call.getCallID());
     }
 
@@ -510,34 +722,26 @@ public class VoIPCarrierServlet extends SipServlet
     @Override
     public void timeout(ServletTimer sTimer) {
         // TODO Here is the code to notify the appcon with the delta time.
-        SipSession session = sTimer.getApplicationSession().getSipSession((String) sTimer.getInfo());
+        SipApplicationSession applicationSession = sTimer.getApplicationSession();
+        SipSession session = applicationSession.getSipSession((String) sTimer.getInfo());
 
         if (session != null && !State.TERMINATED.equals(session.getState())) {
-            BigDecimal timeSpan = getCallTimeSpan(session);
+            Call call = getCall(applicationSession);
+            BigDecimal timeSpan = getCallTimeSpan(call);
 
-            // TODO Time to log
             logger.debug(String.format(
                     "Time elapsed in milleseconds: %f for the call: %s ",
                     timeSpan.doubleValue(), session.getCallId()));
         } else {
-            // TODO
-            // sipSession.createRequest("BYE").send();
             logger.debug(String.format("session: %s does not exist.", (String) sTimer.getInfo()));
         }
     }
-
-    // TODO replaced by dependency inyection.
-//    private TimerService getTimerService() {
-//        return (TimerService) getServletContext().getAttribute(SipServlet.TIMER_SERVICE);
-//    }
 
     private void startServletTimmer(SipApplicationSession applicationSession,
                                     long startTime,
                                     long period,
                                     Serializable srlzblInfo,
                                     SipSession session) {
-//        TimerService tService = getTimerService();
-        // TODO Check if fixed-delay and is persistent can be get from config file.
         sTimer = tService.createTimer(applicationSession, startTime, period, true, false, srlzblInfo);
 
         logger.info(String.format(
@@ -545,12 +749,13 @@ public class VoIPCarrierServlet extends SipServlet
                 session.getId(), session.getCallId(), startTime, period));
     }
 
-    private void stopServletTimer(SipSession session) {
+    private void stopServletTimer(Call call, SipSession session) {
 
         if (sTimer != null) {
             sTimer.cancel();
 
-            BigDecimal timeSpan = getCallTimeSpan(session);
+
+            BigDecimal timeSpan = getCallTimeSpan(call);
 
             logger.info(String.format("Call TimeSpan: %f SessionID: %s CallID:%s",
                     timeSpan.doubleValue(), session.getId(), session.getCallId()));

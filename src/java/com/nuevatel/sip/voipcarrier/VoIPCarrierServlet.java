@@ -660,7 +660,7 @@ public class VoIPCarrierServlet extends SipServlet
     @Override
     public void sessionCreated(SipApplicationSessionEvent ev) {
         // No op.
-        logger.debug("TODO Session created. TimeSpan: " + new Date());
+        logger.trace("Session created.");
     }
 
     /**
@@ -670,7 +670,7 @@ public class VoIPCarrierServlet extends SipServlet
     @Override
     public void sessionDestroyed(SipApplicationSessionEvent ev) {
         // No op.
-        logger.debug("TODO Session destroyed. TimeSpan: " + new Date());
+        logger.trace("Session destroyed.");
     }
 
     /**

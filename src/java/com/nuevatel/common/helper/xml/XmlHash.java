@@ -35,4 +35,13 @@ public interface XmlHash {
      * @return The first node of the node list for the evaluated XPath.
      */
     XmlNode getFirstNode(String xpath);
+
+    /**
+     * Gets string value for the evaluate XPath, if it does not match with nothing, returns null.
+     * 
+     * @param xpath The XPath for selecting nodes in the XML document.
+     *
+     * @return Value for the evaluate XPath, if it does not match with nothing, returns null.
+     */
+    String get(String xpath);
 }

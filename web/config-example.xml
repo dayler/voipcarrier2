@@ -2,13 +2,12 @@
 <!--
 Configuration file used to handle global properties for Application.
 -->
-<config version="1.0" application="voipcarrier">
+<config version="2.0" application="voipcarrier">
     <properties>
         <!-- Define the location for the cpnfiguration file -->
         <property name="voipcarrier.properties" type="string">/cf/properties/voipcarrier.properties</property>
         <!-- Default timeout  -->
         <property name="app-client.properties" type="string">/cf/properties/voipcarrier.gw1.properties</property>
-        <property name="version">2.0</property>
     </properties>
 </config>
 

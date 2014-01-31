@@ -20,6 +20,7 @@ import com.nuevatel.cf.appconn.SessionArg;
 import com.nuevatel.cf.appconn.Type;
 import com.nuevatel.cf.appconn.WatchArg;
 import com.nuevatel.cf.appconn.WatchReportCall;
+import java.util.Date;
 import org.apache.log4j.Logger;
 
 /**
@@ -43,7 +44,6 @@ public class VoIPCarrierListener implements EventListener {
         this.hubbingPrefix = hubbingPrefix;
     }
 
-    //private variables
     public void eventReceived(ConversationEvent event) throws Exception {
         Call call = (Call) event.getSource();
         AppClient appClient = call.getAppClient();
@@ -55,6 +55,7 @@ public class VoIPCarrierListener implements EventListener {
 
             /*The fromName, ie. 70700001 from 70700001@domain1.com:51056*/
             String fromNameString = ((SipURI) call.getCaller()).getUser();
+
             if (fromNameString.contains("anonymous")) {
                 fromNameString = call.getAnonymousMask();
             }
@@ -69,17 +70,22 @@ public class VoIPCarrierListener implements EventListener {
             String nodeId = "sip://" + call.getRemoteHost() + ":" + call.getRemotePort();
 
             //newSessionRequest
+            // TODO 1
             Id id = new Id(call.getCallID(), null);
             Type type = new Type(Type.SERVICE_TYPE.SPEECH, Type.REQUEST_TYPE.O);
+
             Name name = new Name(nameString, Name.NAI_NATIONAL);
             Name fromName = new Name(fromNameString, Name.NAI_INTERNATIONAL);
+
             if (!toNameString.startsWith("591")) {
                 toNameString = hubbingPrefix + toNameString; //remove hubbing prefix
             }
+
             Name toName = new Name(toNameString, Name.TON_INTERNATIONAL);
             Location location = new Location(cellGlobalId, nodeId);
             String tmpReference;
             String tmpPChargingVector = call.getInitialRequest().getHeader("P-Charging-Vector");
+
             if (tmpPChargingVector != null) {
                 String[] tmpArray = tmpPChargingVector.split("=");
                 if (tmpArray.length > 1) {
@@ -97,6 +103,7 @@ public class VoIPCarrierListener implements EventListener {
                 NewSessionCall newSessionCall = new NewSessionCall(id, type, null, name, location, sessionArg);
                 Message newSessionRet = appClient.dispatch(newSessionCall.toMessage());
                 Action action = new Action(newSessionRet.getIE(CFIE.ACTION_IE));
+
                 if (action.getSessionAction() == Action.SESSION_ACTION.ACCEPT) {
                     /*Modify the callee, ie. sip:59170700002@domain1.com:51056 from  sip:267659170700002@domain2.com:5060*/
                     String newCallee = null;
@@ -111,10 +118,13 @@ public class VoIPCarrierListener implements EventListener {
                         newCallee += ";transport=" + ((SipURI) call.getRURI()).getTransportParam();
                     }
                     call.setCallee(newCallee);
+
                 } else {
+                    // TODO 2
                     call.setEndType(SipServletResponse.SC_FORBIDDEN);
                     call.end(SipServletResponse.SC_FORBIDDEN);
                 }
+                
                 logger.info(String.format(
                         "newSessionCall: name:%s fromName:%s toName:%s callId:%s cellGlobalId:%s nodeId:%s result:%s",
                         nameString, fromNameString, toNameString, call.getCallID(), cellGlobalId, nodeId, action.getSessionAction().name()));
@@ -122,6 +132,7 @@ public class VoIPCarrierListener implements EventListener {
                 logger.info(String.format("fromName:%s", fromName));
                 logger.info(String.format("toName:%s", toName));
             } catch (Exception ex) {
+                // TODO 3
                 logger.info(String.format(
                         "newSessionCall Exception: name:%s toName:%s callId:%s %s",
                         nameString, toNameString, call.getCallID(), ex.getMessage()));
@@ -131,8 +142,10 @@ public class VoIPCarrierListener implements EventListener {
         } else if (call.getStatus() == Call.CALL_STARTED) {
             logger.info(String.format("CALL STARTED. callID:%s status:%d", call.getCallID(), call.getStatus()));
 
+            // TODO 1
             Id id = new Id(call.getCallID(), null);
             Type type = new Type(Type.SERVICE_TYPE.SPEECH, Type.REQUEST_TYPE.O);
+
             EventReportCall eventReportCall = new EventReportCall(id, type, Type.EVENT_TYPE.O_ANSWER_2.getType(), null);
 
             // TODO
@@ -142,14 +155,15 @@ public class VoIPCarrierListener implements EventListener {
                     appClient.getState(), appClient.getRemoteId(), appClient.getLocalId()));
 
             try {
-                /***
-                 * TODO
-                 */
                 Message eventReportRet = appClient.dispatch(eventReportCall.toMessage());
                 Action action = new Action(eventReportRet.getIE(CFIE.ACTION_IE));
+
                 if (action.getSessionAction() == Action.SESSION_ACTION.ACCEPT) {
-                    //log something
+                    //TODO ** log something
+                    logger.trace("Session Action was accepted.");
+                    call.setStartDate(new Date());
                 } else {
+                    // TODO 2
                     call.setEndType(SipServletResponse.SC_FORBIDDEN);
                     call.end(SipServletResponse.SC_FORBIDDEN);
                 }
@@ -158,6 +172,7 @@ public class VoIPCarrierListener implements EventListener {
                         "eventReportCall: callId:%s eventType:%s result:%s",
                         call.getCallID(), Type.EVENT_TYPE.O_ANSWER_2, action.getSessionAction().name()));
             } catch (Exception ex) {
+                // TODO 3
                 logger.error(String.format(
                         "eventReportCall Exception: callId:%s eventType:%s",
                         call.getCallID(), Type.EVENT_TYPE.O_ANSWER_2), ex);
@@ -170,17 +185,25 @@ public class VoIPCarrierListener implements EventListener {
                         "CALL ENDED. callID:%s status:%d",
                         call.getCallID(), call.getStatus()));
                 Byte eventType = (((SipURI) call.getEndRequestParty()).toString().equals(((SipURI) call.getCaller()).toString())) ? Type.EVENT_TYPE.O_DISCONNECT_1.getType() : Type.EVENT_TYPE.O_DISCONNECT_2.getType();
-                Type type = new Type(Type.SERVICE_TYPE.SPEECH, Type.REQUEST_TYPE.O);
+
+                // TODO 1
                 Id id = new Id(call.getCallID(), null);
+                Type type = new Type(Type.SERVICE_TYPE.SPEECH, Type.REQUEST_TYPE.O);
+
                 EventArg eventArg = new EventArg(call.getEndType());
                 EventReportCall eventReportCall = new EventReportCall(id, type, eventType, eventArg);
 
                 try {
                     Message eventReportRet = appClient.dispatch(eventReportCall.toMessage());
                     Action action = new Action(eventReportRet.getIE(CFIE.ACTION_IE));
+
+                    // TODO **
+                    call.setEndDate(new Date());
+
                     logger.info(String.format(
                             "eventReportCall: callId:%s eventType:%d result:%s",
                             call.getCallID(), eventType, action.getSessionAction().name()));
+
                 } catch (Exception ex) {
                     logger.error(String.format(
                             "eventReportCall Exception: callId:%s eventType: %s",
@@ -188,9 +211,11 @@ public class VoIPCarrierListener implements EventListener {
                 }
 
                 Integer endValue = 0;
+
                 if (call.getEndDate() != null && call.getStartDate() != null) {
                     endValue = (int) (call.getEndDate().getTime() - call.getStartDate().getTime());
                 }
+
                 long watchArg1 = 0l;
                 WatchArg watchArg = new WatchArg(endValue, watchArg1, null, null, null, null);
                 WatchReportCall watchReportCall = new WatchReportCall(id, Type.WATCH_TYPE.TIME_WATCH.getType(), null, watchArg);
@@ -198,6 +223,10 @@ public class VoIPCarrierListener implements EventListener {
                 try {
                     Message watchReportRet = appClient.dispatch(watchReportCall.toMessage());
                     Action action = new Action(watchReportRet.getIE(CFIE.ACTION_IE));
+
+                    // TODO **
+                    // call.setEndDate(new Date());
+
                     logger.info(String.format(
                             "watchReportCall: callId:%s watchType:%d endValue:%d watchArg1:%d result:%s",
                             call.getCallID(), Type.WATCH_TYPE.TIME_WATCH.getType(), endValue, watchArg1, action.getSessionAction().name()));
@@ -236,7 +265,6 @@ public class VoIPCarrierListener implements EventListener {
             logger.info(String.format("CALL ON HOLD. callID:%s status:%d", call.getCallID(), call.getStatus()));
         } else if (call.getStatus() == Call.CALL_RETRIEVED) {
             logger.info(String.format("CALL RETRIEVED. callID:%s status:%d", call.getCallID(), call.getStatus()));
-            //logger.log(Level.INFO, "{0} RETRIEVED", call.getCallID());
         }
     }
 

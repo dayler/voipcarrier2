@@ -89,4 +89,20 @@ public class XmlHashImpl implements XmlHash{
         // Get first element.
         return xmlNodes.get(0);
     }
+
+    /**
+     * {@inheritDoc}
+     */
+    public String get(String xpath) {
+        try {
+            String result = xPath.compile(xpath).evaluate(xmlDocument);
+
+            return result;
+        } catch (XPathExpressionException ex) {
+            logger.log(Level.SEVERE, String.format("Xpath %s cannot be evaluated", xpath), ex);
+
+            // Return null if the xpath cannot be evaluated.
+            return null;
+        }
+    }
 }

@@ -5,10 +5,14 @@
 
 package com.nuevatel.common.servlet.log4j;
 
+import com.nuevatel.common.helper.xml.XmlHash;
+import com.nuevatel.sip.voipcarrier.helper.ConfigHelper;
+import com.nuevatel.sip.voipcarrier.log4j.PatternLayout;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 import javax.servlet.http.HttpServlet;
 import org.apache.log4j.extras.DOMConfigurator;
+import static com.nuevatel.sip.voipcarrier.helper.VoipConstants.*;
 
 /**
  * This servlet is responsible to load the initial configuration for Log4j.xml.
@@ -19,7 +23,20 @@ import org.apache.log4j.extras.DOMConfigurator;
  */
 public class Log4jServletInit extends HttpServlet {
 
+    /**
+     * Application logger.
+     */
     private static Logger helperLogger = Logger.getLogger("Log4jServletInit");
+
+    /**
+     * Path to get the location of the voipcarrier configuration file.
+     */
+    private static final String XPATH_VERSION = "//config/@version";
+
+    /**
+     * Path to get the location of the voipcarrier configuration file.
+     */
+    private static final String XPATH_APPNAME = "//config/@application";
 
     /**
      * Name of the init parameter to contains the name of the configuration
@@ -28,17 +45,18 @@ public class Log4jServletInit extends HttpServlet {
     public static final String LOG4J_INIT_FILE = "log4j-init-xml-file";
 
     /**
-     * Relative root path.
-     */
-    public static final String ROOT_PATH = "/";
-
-    /**
      * {@inheritDoc}
      */
     @Override
     public void init() {
         try {
             String relativePath = getServletContext().getRealPath(ROOT_PATH);
+
+            // Setup header for log file.
+            XmlHash confXmlHash = ConfigHelper.getConfigXmlHash(relativePath);
+            PatternLayout.setAppName(confXmlHash.get(XPATH_APPNAME));
+            PatternLayout.setVersion(confXmlHash.get(XPATH_VERSION));
+
             String log4jFile = getInitParameter(LOG4J_INIT_FILE);
 
             // if the log4j-init-file is not set, then no point in trying

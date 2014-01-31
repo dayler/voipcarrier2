@@ -14,9 +14,9 @@ import com.nuevatel.cf.appconn.CFMessage;
 import com.nuevatel.base.appconn.TaskSet;
 import com.nuevatel.common.helper.StringHelper;
 import com.nuevatel.common.helper.xml.XmlHash;
-import com.nuevatel.common.helper.xml.XmlHashImpl;
 import com.nuevatel.sip.SipCommand;
 import com.nuevatel.sip.SipHeaders;
+import com.nuevatel.sip.voipcarrier.helper.ConfigHelper;
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileNotFoundException;
@@ -46,14 +46,9 @@ import javax.servlet.sip.TimerService;
 import javax.servlet.sip.TooManyHopsException;
 import javax.servlet.sip.UAMode;
 import javax.servlet.sip.URI;
-import javax.xml.parsers.DocumentBuilder;
-import javax.xml.parsers.DocumentBuilderFactory;
-import javax.xml.parsers.ParserConfigurationException;
 import org.apache.log4j.Logger;
-import org.w3c.dom.Document;
-import org.xml.sax.SAXException;
-import static com.nuevatel.sip.voipcarrier.helper.VoipConstants.*;
 import static com.nuevatel.common.helper.ClassHelper.*;
+import static com.nuevatel.sip.voipcarrier.helper.VoipConstants.*;
 
 
 /**
@@ -81,16 +76,6 @@ public class VoIPCarrierServlet extends SipServlet
      * Serial version for the servlet.
      */
     private static final long serialVersionUID = 290102014L;
-
-    /**
-     * Global configuration. Indicate the location for the *properties.
-     */
-    private static final String CONFIG_XML = "config.xml";
-
-    /**
-     * Relative root path.
-     */
-    public static final String ROOT_PATH = "/";
 
     /**
      * Application logger.
@@ -169,7 +154,8 @@ public class VoIPCarrierServlet extends SipServlet
 
         try{
 
-            XmlHash confXmlHash = getConfigXmlHash();
+            String relativePath = getServletContext().getRealPath(ROOT_PATH);
+            XmlHash confXmlHash = ConfigHelper.getConfigXmlHash(relativePath);
             String voipCarrierPropPath = confXmlHash.getFirstNode(XPATH_VOIPCARRIER_PROPERTIES).getNodeValue();
             String appClientPropPath = confXmlHash.getFirstNode(XPATH_APPCLIENT_PROPERTIES).getNodeValue();
 
@@ -264,11 +250,14 @@ public class VoIPCarrierServlet extends SipServlet
     @Override
     protected void doResponse (SipServletResponse response) throws IOException, ServletException{
         SipSession session = response.getSession();
-        logger.trace(String.format("doResponse is executing. Session ID: %s", session.getId()));
+        logger.trace(String.format("doResponse is executing. Session ID: %s command: %s", session.getId(), response.getMethod()));
 
         // TODO Instead call object just set the call id, and get the call instance usign cahehandler
         Call call = (Call)response.getApplicationSession().getAttribute("call");
         int responseStatus = response.getStatus();
+
+        logger.trace(String.format("URICaller: %s URICallee: %s Response Status: %s callStatus: %s",
+                response.getFrom().getURI(), response.getTo().getURI(), responseStatus, call.getStatus()));
 
         if (responseStatus == SipServletResponse.SC_REQUEST_TERMINATED){
             return; //487 already sent on Cancel for initial leg UAS
@@ -282,7 +271,7 @@ public class VoIPCarrierServlet extends SipServlet
             if (responseStatus > SipServletResponse.SC_OK) {
                 //final response. cut call
                 call.setEndType(responseStatus);
-                call.setEndDate(new Date());
+                //call.setEndDate(new Date());
                 call.setStatus(Call.CALL_ENDED);
 
                 logger.debug(String.format("Call was ended. CallID: %s SessionID: %s",
@@ -400,7 +389,7 @@ public class VoIPCarrierServlet extends SipServlet
                     if (response.getRequest().isInitial()) {
                         Call call = getCall(request);
 
-                        call.setStartDate(new Date());
+                        //call.setStartDate(new Date());
                         call.setStatus(Call.CALL_STARTED);
 
                         // Initialize the timmer.
@@ -458,7 +447,7 @@ public class VoIPCarrierServlet extends SipServlet
         Call call = getCall(request);
         call.setEndType(SipServletResponse.SC_OK);
         call.setEndRequestParty(request.getFrom().getURI());
-        call.setEndDate(new Date());
+        //call.setEndDate(new Date());
         call.setStatus(Call.CALL_ENDED);
 
         // Stop timmer.
@@ -545,25 +534,31 @@ public class VoIPCarrierServlet extends SipServlet
      * @param target Target Servlet Message.
      * @param sipHeader The Header Name to copy.
      */
-    private void copyHeader (SipServletMessage source, SipServletMessage target, SipHeaders sipHeader){
-        int count=0;
+    private void copyHeader(SipServletMessage source, SipServletMessage target, SipHeaders sipHeader) {
+        int count = 0;
         String headerName = sipHeader.toString();
-        String header=null;
-        for (Iterator<String> iterator = source.getHeaders(headerName.toString()); iterator.hasNext();){
+        String header = null;
+        for (Iterator<String> iterator = source.getHeaders(headerName.toString()); iterator.hasNext();) {
             count++;
             String tmpHeader = iterator.next();
-            if (header==null) header=tmpHeader;
-            else header+=tmpHeader;
-            if (count>0 && iterator.hasNext()){
-                header+=", ";
+            if (header == null) {
+                header = tmpHeader;
+            } else {
+                header += tmpHeader;
+            }
+            if (count > 0 && iterator.hasNext()) {
+                header += ", ";
             }
         }
-        if (header!=null){
+        if (header != null) {
             target.setHeader(headerName, header);
-            if (headerName.contains("Session-Expires")){
-            if (header.contains("refresher")) target.setHeader("Session-Expires", "100; refresher=uas");
-            else target.setHeader("Session-Expires", "100");
-        }
+            if (headerName.contains("Session-Expires")) {
+                if (header.contains("refresher")) {
+                    target.setHeader("Session-Expires", "100; refresher=uas");
+                } else {
+                    target.setHeader("Session-Expires", "100");
+                }
+            }
         }
     }
 
@@ -610,26 +605,6 @@ public class VoIPCarrierServlet extends SipServlet
         hubbingPrefix = voipCarrierProperties.getProperty("hubbingPrefix");
         cellGlobalId = voipCarrierProperties.getProperty("cellGlobalId", "500000");
         anonymousMask = voipCarrierProperties.getProperty("anonymousMask", "70100000");
-    }
-
-    /**
-     *
-     * @return XML HASH with config xml configuration.
-     *
-     * @throws SAXException
-     * @throws ParserConfigurationException
-     * @throws IOException
-     */
-    private XmlHash getConfigXmlHash() throws SAXException, ParserConfigurationException, IOException {
-        // Load config.xml. Get global configuration.
-        String relativePath = getServletContext().getRealPath(ROOT_PATH);
-        String configFile = CONFIG_XML;
-        DocumentBuilderFactory builderFactory = DocumentBuilderFactory.newInstance();
-        DocumentBuilder builder = builderFactory.newDocumentBuilder();
-        Document configDoc = builder.parse(String.format("%s%s", relativePath, configFile));
-        XmlHash confXmlHash = new XmlHashImpl(configDoc);
-
-        return confXmlHash;
     }
 
     /**
@@ -751,16 +726,18 @@ public class VoIPCarrierServlet extends SipServlet
 
     private void stopServletTimer(Call call, SipSession session) {
 
+        BigDecimal timeSpan = BigDecimal.ZERO;
+
         if (sTimer != null) {
             sTimer.cancel();
 
 
-            BigDecimal timeSpan = getCallTimeSpan(call);
+            timeSpan = getCallTimeSpan(call);
+        }
 
-            logger.info(String.format("Call TimeSpan: %f SessionID: %s CallID:%s",
+        logger.info(String.format("Call TimeSpan: %f SessionID: %s CallID:%s",
                     timeSpan.doubleValue(), session.getId(), session.getCallId()));
             logger.info(String.format("Servlet Timer was canceled. Session ID: %s Call ID: %s",
                     session.getId(), session.getCallId()));
-        }
     }
 }

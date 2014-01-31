@@ -3,7 +3,7 @@
  * and open the template in the editor.
  */
 
-package com.nuevatel.common.servlet.log4j;
+package com.nuevatel.sip.servlet.log4j;
 
 import com.nuevatel.common.helper.xml.XmlHash;
 import com.nuevatel.sip.voipcarrier.helper.ConfigHelper;

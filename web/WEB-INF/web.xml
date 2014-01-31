@@ -3,7 +3,7 @@
     <!-- Servlet used to load log4j properties. -->
     <servlet>
         <servlet-name>Log4jServletInit</servlet-name>
-        <servlet-class>com.nuevatel.common.servlet.log4j.Log4jServletInit</servlet-class>
+        <servlet-class>com.nuevatel.sip.servlet.log4j.Log4jServletInit</servlet-class>
         <init-param>
             <param-name>log4j-init-xml-file</param-name>
             <param-value>WEB-INF/log4j.xml</param-value>

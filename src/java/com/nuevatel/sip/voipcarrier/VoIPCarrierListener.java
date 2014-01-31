@@ -181,6 +181,8 @@ public class VoIPCarrierListener implements EventListener {
             }
         } else if (call.getStatus() == Call.CALL_ENDED) {
             if (call.getPastStatus() != Call.CALL_KILLED) {
+                Date referencialEndDate = new Date();
+
                 logger.info(String.format(
                         "CALL ENDED. callID:%s status:%d",
                         call.getCallID(), call.getStatus()));
@@ -198,7 +200,7 @@ public class VoIPCarrierListener implements EventListener {
                     Action action = new Action(eventReportRet.getIE(CFIE.ACTION_IE));
 
                     // TODO **
-                    call.setEndDate(new Date());
+                    call.setEndDate(referencialEndDate);
 
                     logger.info(String.format(
                             "eventReportCall: callId:%s eventType:%d result:%s",

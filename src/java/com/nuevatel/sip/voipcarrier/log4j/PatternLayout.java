@@ -69,8 +69,8 @@ public class PatternLayout extends org.apache.log4j.PatternLayout {
         builder.append("Creation Date: ");
         builder.append(new Date());
         builder.append(StringHelper.END_LINE);
+        builder.append(StringHelper.END_LINE);
 
-        builder.append("##");
         builder.append("##");
         builder.append(StringHelper.END_LINE);
         builder.append("##");

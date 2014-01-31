@@ -464,7 +464,7 @@ public class VoIPCarrierServlet extends SipServlet
     @Override
     public void sessionCreated(SipSessionEvent sse) {
         // No op. For log purposes.
-        logger.debug("Session created. TimeSpan: " + new Date());
+        logger.trace("Session created.");
     }
 
     /**
@@ -474,7 +474,7 @@ public class VoIPCarrierServlet extends SipServlet
     @Override
     public void sessionDestroyed(SipSessionEvent sse) {
         // No op. For log purposes.
-        logger.debug("Session destroyed. TimeSpan: " + new Date());
+        logger.trace("Session destroyed.");
     }
 
     /**
@@ -483,6 +483,7 @@ public class VoIPCarrierServlet extends SipServlet
     @Override
     public void sessionReadyToInvalidate(SipSessionEvent arg0) {
         // No op.
+        logger.trace("Session ready to invalidate.");
     }
 
     /**
@@ -659,6 +660,7 @@ public class VoIPCarrierServlet extends SipServlet
     @Override
     public void sessionCreated(SipApplicationSessionEvent ev) {
         // No op.
+        logger.debug("TODO Session created. TimeSpan: " + new Date());
     }
 
     /**
@@ -668,6 +670,7 @@ public class VoIPCarrierServlet extends SipServlet
     @Override
     public void sessionDestroyed(SipApplicationSessionEvent ev) {
         // No op.
+        logger.debug("TODO Session destroyed. TimeSpan: " + new Date());
     }
 
     /**

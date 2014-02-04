@@ -99,7 +99,11 @@ public class VoIPCarrierListener implements EventListener {
 //            SessionArg sessionArg = new SessionArg(fromName, toName, null, null, tmpReference);
             SessionArg sessionArg = new SessionArg(fromName, toName, null, null, null, tmpReference);
 
+            logger.trace("TODO sessionArgas: " + fromName + " " + toName + "null null null " + tmpReference);
+
             try {
+                logger.trace("TODO newSessionCall: " + id + " " + type + " null " + name + " " + location + " " + sessionArg);
+
                 NewSessionCall newSessionCall = new NewSessionCall(id, type, null, name, location, sessionArg);
                 Message newSessionRet = appClient.dispatch(newSessionCall.toMessage());
                 Action action = new Action(newSessionRet.getIE(CFIE.ACTION_IE));
@@ -133,9 +137,9 @@ public class VoIPCarrierListener implements EventListener {
                 logger.info(String.format("toName:%s", toName));
             } catch (Exception ex) {
                 // TODO 3
-                logger.info(String.format(
-                        "newSessionCall Exception: name:%s toName:%s callId:%s %s",
-                        nameString, toNameString, call.getCallID(), ex.getMessage()));
+                logger.error(String.format(
+                        "newSessionCall Exception: name:%s toName:%s callId:%s",
+                        nameString, toNameString, call.getCallID()), ex);
                 call.setEndType(SipServletResponse.SC_FORBIDDEN);
                 call.end(SipServletResponse.SC_FORBIDDEN);
             }

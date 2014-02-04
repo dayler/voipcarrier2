@@ -6,8 +6,9 @@ Configuration file used to handle global properties for Application.
     <properties>
         <!-- Define the location for the cpnfiguration file -->
         <property name="voipcarrier.properties" type="string">/cf/properties/voipcarrier.properties</property>
-        <!-- Default timeout  -->
+        <!-- Default the location for the appconn configuration file  -->
         <property name="app-client.properties" type="string">/cf/properties/voipcarrier.gw1.properties</property>
+        <!-- Indicates if the application is running in test mode. It must to be disable for production -->
+        <property name="enable-test-mode" type="boolean">true</property>
     </properties>
 </config>
-

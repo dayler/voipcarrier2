@@ -12,6 +12,7 @@ import javax.servlet.sip.ServletTimer;
 import javax.servlet.sip.SipServlet;
 import com.nuevatel.cf.appconn.CFMessage;
 import com.nuevatel.base.appconn.TaskSet;
+import com.nuevatel.common.helper.IntegerHelper;
 import com.nuevatel.common.helper.StringHelper;
 import com.nuevatel.common.helper.xml.XmlHash;
 import com.nuevatel.sip.SipCommand;
@@ -61,6 +62,11 @@ import static com.nuevatel.sip.voipcarrier.helper.VoipConstants.*;
 @javax.servlet.sip.annotation.SipListener
 public class VoIPCarrierServlet extends SipServlet
         implements SipApplicationSessionListener, TimerListener, SipSessionListener{
+
+    /**
+     * Path to get enable test mode property.
+     */
+    private static final String XPATH_ENABLE_TEST_MODE = "//config/properties/property[@name='enable-test-mode']/text()";
 
     /**
      * Path to get the location of the voipcarrier configuration file.
@@ -130,6 +136,11 @@ public class VoIPCarrierServlet extends SipServlet
     private ServletTimer sTimer = null;
 
     /**
+     * True if test mode is not enabled.
+     */
+    private boolean isNotEnableTestMode = false;
+
+    /**
      * Factory for the timers.
      */
     @Resource
@@ -158,6 +169,7 @@ public class VoIPCarrierServlet extends SipServlet
             XmlHash confXmlHash = ConfigHelper.getConfigXmlHash(relativePath);
             String voipCarrierPropPath = confXmlHash.getFirstNode(XPATH_VOIPCARRIER_PROPERTIES).getNodeValue();
             String appClientPropPath = confXmlHash.getFirstNode(XPATH_APPCLIENT_PROPERTIES).getNodeValue();
+            isNotEnableTestMode = !Boolean.parseBoolean(confXmlHash.get(XPATH_ENABLE_TEST_MODE));
 
             if (StringHelper.isBlank(voipCarrierPropPath) || StringHelper.isBlank(appClientPropPath)) {
 
@@ -189,7 +201,7 @@ public class VoIPCarrierServlet extends SipServlet
                     localId, remoteId, appClientProperties.getProperty("address"),
                     appClientProperties.getProperty("port"), appClientProperties.getProperty("size")));
 
-        } catch(Exception ex) {
+        } catch(Throwable ex) {
             logger.error("The servlet cannot be initialized.", ex);
         }
     }
@@ -250,7 +262,8 @@ public class VoIPCarrierServlet extends SipServlet
     @Override
     protected void doResponse (SipServletResponse response) throws IOException, ServletException{
         SipSession session = response.getSession();
-        logger.trace(String.format("doResponse is executing. Session ID: %s command: %s", session.getId(), response.getMethod()));
+        logger.trace(String.format("doResponse is executing. Session ID: %s command: %s Response Status: %d",
+                session.getId(), response.getMethod(), response.getStatus()));
 
         // TODO Instead call object just set the call id, and get the call instance usign cahehandler
         Call call = (Call)response.getApplicationSession().getAttribute("call");
@@ -338,10 +351,21 @@ public class VoIPCarrierServlet extends SipServlet
                 B2buaHelper b2b = request.getB2buaHelper();
                 SipServletRequest other = b2b.createRequest(request, true, null);
                 copyContent(request, other);
-                other.setRequestURI(call.getCallee());
-                other.getFrom().setURI(call.getCaller());
-                other.getTo().setURI(call.getCallee());
+
+                if (isNotEnableTestMode) {
+                    other.setRequestURI(call.getCallee()); // Modify the "callee"
+                    other.getFrom().setURI(call.getCaller());
+                    other.getTo().setURI(call.getCallee());
+                }
+
                 copyHeaders(request, other);
+
+                if (logger.isTraceEnabled()) {
+                    logger.trace(String.format(
+                            "B2BUA is creating second request.%s Primary Request: %s  %s Second Request: %s",
+                            StringHelper.END_LINE, request, StringHelper.END_LINE, other));
+                }
+
                 other.send();
             }
 
@@ -600,12 +624,19 @@ public class VoIPCarrierServlet extends SipServlet
      */
     private void loadVoipCarrierProperties() throws NumberFormatException {
         //set variables
+//        localId = IntegerHelper.tryParse(voipCarrierProperties.getProperty("localId", "500"));
+
+
         localId = Integer.valueOf(voipCarrierProperties.getProperty("localId", "500"));
         remoteId = Integer.valueOf(voipCarrierProperties.getProperty("remoteId", "40"));
         carrierPrefixSize = Integer.valueOf(voipCarrierProperties.getProperty("carrierPrefixSize", "4"));
         hubbingPrefix = voipCarrierProperties.getProperty("hubbingPrefix");
         cellGlobalId = voipCarrierProperties.getProperty("cellGlobalId", "500000");
         anonymousMask = voipCarrierProperties.getProperty("anonymousMask", "70100000");
+    }
+
+    private <T> T requiredPorperty(T value, String propertyName) {
+        return null;
     }
 
     /**
@@ -712,6 +743,8 @@ public class VoIPCarrierServlet extends SipServlet
                     timeSpan.doubleValue(), session.getCallId()));
         } else {
             logger.debug(String.format("session: %s does not exist.", (String) sTimer.getInfo()));
+            sTimer.cancel();
+            // TODO Log something
         }
     }
 

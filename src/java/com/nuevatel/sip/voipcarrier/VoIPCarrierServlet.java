@@ -181,15 +181,15 @@ public class VoIPCarrierServlet extends SipServlet
             // Load all properties for voipcarrier, in serverlet context variables.
             loadVoipCarrierProperties();
 
-            appClient = new AppClient(localId, remoteId, taskSet, appClientProperties);
-            appClient.start();
+//            appClient = new AppClient(localId, remoteId, taskSet, appClientProperties);
+//            appClient.start();
 
             logger.info(String.format(
                     "Startted AppClient localId: %d remoteId: %d address: %s port: %s size: %s",
                     localId, remoteId, appClientProperties.getProperty("address"),
                     appClientProperties.getProperty("port"), appClientProperties.getProperty("size")));
 
-        } catch(Exception ex) {
+        } catch(Throwable ex) {
             logger.error("The servlet cannot be initialized.", ex);
         }
     }
@@ -202,7 +202,7 @@ public class VoIPCarrierServlet extends SipServlet
     public void destroy(){
         try{
             logger.trace("It is detroying.");
-            appClient.interrupt();
+//            appClient.interrupt();
 
         } catch(Exception ex) {
             logger.error("When the appClient was interrupted.", ex);
@@ -335,14 +335,26 @@ public class VoIPCarrierServlet extends SipServlet
 
             //INITIALIZED event fires at this moment
             if (call.getStatus() != Call.CALL_ENDED && call.getStatus() < Call.MEDIA_CALL_INITIALIZED) {//if event hasn't cause the call to end and there is no media session
+                try {
                 B2buaHelper b2b = request.getB2buaHelper();
                 SipServletRequest other = b2b.createRequest(request, true, null);
                 copyContent(request, other);
                 other.setRequestURI(call.getCallee());
-                other.getFrom().setURI(call.getCaller());
-                other.getTo().setURI(call.getCallee());
+
+                logger.trace("TODO req from: " + request.getFrom().getURI());
+                logger.trace("TODO req to: " + request.getTo().getURI());
+
+                logger.trace("TODO other from: " + other.getFrom().getURI());
+                logger.trace("TDODO other to: " + other.getTo().getURI());
+
+//                other.getFrom().setURI(call.getCaller());
+//                other.getTo().setURI(call.getCallee());
+                
                 copyHeaders(request, other);
                 other.send();
+                } catch (Throwable ex) {
+                    logger.trace("TODO EXCEPTION: ", ex);
+                }
             }
 
         } else {
@@ -570,26 +582,27 @@ public class VoIPCarrierServlet extends SipServlet
      * @return How long the call lasted, at the time in which this method is called.
      */
     private BigDecimal getCallTimeSpan(Call call) {
-        Date referenceEndDate = new Date();
-
-        if (call == null) {
-            return BigDecimal.ZERO;
-        }
-
-        long referenceEndTime;
-
-        if (!Call.CALL_ENDED.equals(call.getStatus()) || call.getEndDate() == null) {
-            // If the call still in progress.
-            referenceEndTime = referenceEndDate.getTime();
-        } else {
-            referenceEndTime = call.getEndDate().getTime();
-        }
-
-        BigDecimal creationTime = new BigDecimal(call.getStartDate().getTime());
-        BigDecimal endTime = new BigDecimal(referenceEndTime);
-        BigDecimal timeSpan = creationTime.subtract(endTime).abs();
-
-        return timeSpan;
+//        Date referenceEndDate = new Date();
+//
+//        if (call == null) {
+//            return BigDecimal.ZERO;
+//        }
+//
+//        long referenceEndTime;
+//
+//        if (!Call.CALL_ENDED.equals(call.getStatus()) || call.getEndDate() == null) {
+//            // If the call still in progress.
+//            referenceEndTime = referenceEndDate.getTime();
+//        } else {
+//            referenceEndTime = call.getEndDate().getTime();
+//        }
+//
+//        BigDecimal creationTime = new BigDecimal(call.getStartDate().getTime());
+//        BigDecimal endTime = new BigDecimal(referenceEndTime);
+//        BigDecimal timeSpan = creationTime.subtract(endTime).abs();
+//
+//        return timeSpan;
+        return BigDecimal.ZERO;
     }
 
     /**
@@ -712,6 +725,7 @@ public class VoIPCarrierServlet extends SipServlet
                     timeSpan.doubleValue(), session.getCallId()));
         } else {
             logger.debug(String.format("session: %s does not exist.", (String) sTimer.getInfo()));
+
         }
     }
 

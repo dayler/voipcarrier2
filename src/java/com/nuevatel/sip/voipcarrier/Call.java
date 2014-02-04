@@ -103,8 +103,8 @@ public class Call {
             try {
                 this.pastStatus = this.status;
                 this.status = status;
-                ConversationEvent event = new ConversationEvent(this);
-                fireEvent(event);
+//                ConversationEvent event = new ConversationEvent(this);
+//                fireEvent(event);
             } catch (Exception ex) {
                // Logger.getLogger(Call.class.getName()).log(Level.SEVERE, null, ex);
                 logger.error("The status of call cannot be changed.",ex);

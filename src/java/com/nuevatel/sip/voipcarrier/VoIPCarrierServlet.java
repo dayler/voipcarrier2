@@ -17,6 +17,7 @@ import com.nuevatel.common.helper.StringHelper;
 import com.nuevatel.common.helper.xml.XmlHash;
 import com.nuevatel.sip.SipCommand;
 import com.nuevatel.sip.SipHeaders;
+import com.nuevatel.sip.exception.IllegalValueException;
 import com.nuevatel.sip.voipcarrier.helper.ConfigHelper;
 import java.io.File;
 import java.io.FileInputStream;
@@ -147,14 +148,7 @@ public class VoIPCarrierServlet extends SipServlet
     private TimerService tService;
 
     /**
-     * VoIPCarrierServlet default constructor.
-     */
-    public VoIPCarrierServlet(){
-        // No op
-    }
-
-    /**
-     * {@inheritDoc} 
+     * {@inheritDoc}
      *
      */
     @Override
@@ -192,6 +186,11 @@ public class VoIPCarrierServlet extends SipServlet
 
             // Load all properties for voipcarrier, in serverlet context variables.
             loadVoipCarrierProperties();
+
+            logger.info(String.format(
+                    "Loaded VOIP Carrier poperties cellGlobalId: %s carrierPrefixSize: %s "
+                    + "hubbingPrefix: %s anonymousMaks: %s"
+                    , cellGlobalId, carrierPrefixSize, hubbingPrefix, anonymousMask));
 
             appClient = new AppClient(localId, remoteId, taskSet, appClientProperties);
             appClient.start();
@@ -252,7 +251,6 @@ public class VoIPCarrierServlet extends SipServlet
 
             super.doRequest(request);
         }
-
     }
 
     /**
@@ -588,7 +586,7 @@ public class VoIPCarrierServlet extends SipServlet
     }
 
     /**
-     * 
+     *
      * @param call Current media call in progress.
      *
      * @return How long the call lasted, at the time in which this method is called.
@@ -622,21 +620,36 @@ public class VoIPCarrierServlet extends SipServlet
      * @throws NumberFormatException When one or more properties that are expecting decimal numbers
      * are incorrect.
      */
-    private void loadVoipCarrierProperties() throws NumberFormatException {
+    private void loadVoipCarrierProperties() throws NumberFormatException, IllegalValueException {
         //set variables
-//        localId = IntegerHelper.tryParse(voipCarrierProperties.getProperty("localId", "500"));
-
-
-        localId = Integer.valueOf(voipCarrierProperties.getProperty("localId", "500"));
-        remoteId = Integer.valueOf(voipCarrierProperties.getProperty("remoteId", "40"));
-        carrierPrefixSize = Integer.valueOf(voipCarrierProperties.getProperty("carrierPrefixSize", "4"));
-        hubbingPrefix = voipCarrierProperties.getProperty("hubbingPrefix");
+        localId =
+                checkRequiredPorperty(IntegerHelper.tryParse(voipCarrierProperties.getProperty("localId")), "localId");
+        remoteId =
+                checkRequiredPorperty(IntegerHelper.tryParse(voipCarrierProperties.getProperty("remoteId")), "remoteId");
+        carrierPrefixSize = IntegerHelper.tryParse(voipCarrierProperties.getProperty("carrierPrefixSize", "4"));
+        hubbingPrefix = voipCarrierProperties.getProperty("hubbingPrefix", "0019");
         cellGlobalId = voipCarrierProperties.getProperty("cellGlobalId", "500000");
         anonymousMask = voipCarrierProperties.getProperty("anonymousMask", "70100000");
     }
 
-    private <T> T requiredPorperty(T value, String propertyName) {
-        return null;
+    /**
+     * Throw an exception when parameter to check is null. It means that the parameter must to be specified.
+     *
+     * @param <T> Type of the property to check.
+     * @param value Value of the property to check.
+     * @param propertyName Name of the property to check.
+     *
+     * @return Same value of the property passed as parameter, if it is not null.
+     *
+     * @throws IllegalValueException If the property value is null.
+     */
+    private <T> T checkRequiredPorperty(T value, String propertyName) throws IllegalValueException {
+        if (value == null) {
+            String msg = String.format("Property: %s cannot be empty.", propertyName);
+            throw new IllegalValueException(msg);
+        }
+
+        return value;
     }
 
     /**

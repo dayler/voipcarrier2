@@ -32,6 +32,7 @@ import org.apache.log4j.Logger;
 import static com.nuevatel.sip.voipcarrier.helper.VoipConstants.*;
 
 /**
+ * Handle VOIP Carrier call status.
  *
  * @author luis
  */
@@ -42,6 +43,9 @@ public class VoIPCarrierListener implements EventListener {
      */
     private final static Logger logger = Logger.getLogger(VoIPCarrierListener.class);
 
+    /**
+     * Name of the Listener.
+     */
     public final static String LISTENER_NAME = VoIPCarrierListener.class.getName();
 
     private String cellGlobalId;
@@ -77,12 +81,11 @@ public class VoIPCarrierListener implements EventListener {
 
             /*The name, ie. 2676 from  sip:267659170700002@domain2.com:5060*/
             String nameString = ((SipURI) call.getCallee()).getUser().substring(0, carrierPrefixSize);
-//
-//            String nodeId = call.getRURI().toString();
-            String nodeId = "sip://" + call.getRemoteHost() + ":" + call.getRemotePort();
+
+            String nodeId = String.format("sip://%s:%s", call.getRemoteHost(), call.getRemotePort());
+            logger.trace(String.format("NodeId: %s", nodeId));
 
             //newSessionRequest
-            // TODO 1
             Id id = new Id(call.getCallID(), null);
             Type type = new Type(Type.SERVICE_TYPE.SPEECH, Type.REQUEST_TYPE.O);
 
@@ -111,25 +114,23 @@ public class VoIPCarrierListener implements EventListener {
 
             SessionArg sessionArg = new SessionArg(fromName, toName, null, null, null, tmpReference);
 
-            logger.trace("TODO sessionArgas: " + fromName + " " + toName + "null null null " + tmpReference);
+            logger.debug(String.format("SessionArgs fromName: %s toName: %s null null null tmpReference: %s",
+                    fromName, toName, tmpReference));
 
             try {
-                logger.trace("TODO newSessionCall: " + id + " " + type + " null " + name + " " + location + " " + sessionArg);
+                logger.debug(String.format("NewSessionCall id: %s type: %s null name: %s location: %s sessionArg: %s",
+                        id, type, name, location, sessionArg));
 
                 NewSessionCall newSessionCall = new NewSessionCall(id, type, null, name, location, sessionArg);
                 Message newSessionRet = appClient.dispatch(newSessionCall.toMessage());
                 Action action = new Action(newSessionRet.getIE(CFIE.ACTION_IE));
 
-                // TODO
-                /****************/
-//                CallInitializedEventResponse evResponse = new CallInitializedEventResponse(newSessionRet);
-//                System.out.println(evResponse.getWatchPeriod());
-                /****************/
-
                 if (action.getSessionAction() == Action.SESSION_ACTION.ACCEPT) {
                     /*Modify the callee, ie. sip:59170700002@domain1.com:51056 from  sip:267659170700002@domain2.com:5060*/
                     String newCallee = null;
-                    newCallee = "sip:" + ((SipURI) call.getCallee()).getUser().substring(4) + "@" + ((SipURI) call.getCaller()).getHost() + ":" + ((SipURI) call.getCaller()).getPort();
+                    newCallee = String.format("sip:%s@%s:%s", ((SipURI) call.getCallee()).getUser().substring(4),
+                            ((SipURI) call.getCaller()).getHost(), ((SipURI) call.getCaller()).getPort());
+                    logger.trace(String.format("NewCallee: %s", newCallee));
 
                     if (((SipURI) call.getCaller()).getHost().contains("anonymous") || ((SipURI) call.getCaller()).getHost() == null) {
                         newCallee = "sip:" + ((SipURI) call.getCallee()).getUser().substring(4) + "@" + call.getRemoteHost() + ":" + call.getRemotePort();
@@ -158,7 +159,6 @@ public class VoIPCarrierListener implements EventListener {
                 logger.info(String.format("fromName:%s", fromName));
                 logger.info(String.format("toName:%s", toName));
             } catch (Exception ex) {
-                // TODO 3
                 logger.error(String.format(
                         "newSessionCall Exception: name:%s toName:%s callId:%s",
                         nameString, toNameString, call.getCallID()), ex);

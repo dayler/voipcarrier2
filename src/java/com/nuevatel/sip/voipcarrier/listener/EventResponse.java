@@ -6,6 +6,7 @@
 package com.nuevatel.sip.voipcarrier.listener;
 
 /**
+ * Response of an CF event.
  *
  * @author asalazar
  */

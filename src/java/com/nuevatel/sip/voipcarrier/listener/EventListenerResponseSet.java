@@ -10,13 +10,25 @@ import java.util.HashMap;
 import java.util.Map;
 
 /**
+ * Contains a set of EventResponse objects organized by [Listener name][call status] -> Event response
+ * Used to retrieve the Event response after listener event execution.
  *
  * @author asalazar
  */
 public class EventListenerResponseSet {
 
+    /**
+     * Set of Event Responses.
+     */
     private Map<String, Map<Integer, EventResponse>> setOfResponses = new HashMap<String, Map<Integer, EventResponse>>();
 
+    /**
+     * Register an event response into set.
+     *
+     * @param converationEventName Event listener name to produce the Event Response.
+     * @param callStatus The status of the call from which is produced the Event Response.
+     * @param eventResponse The Event Response.
+     */
     public void addEventResponse(String converationEventName, Integer callStatus, EventResponse eventResponse) {
         Parameters.checkBlankString(converationEventName, "converationEventName");
         Parameters.checkNull(callStatus, "callStatus");

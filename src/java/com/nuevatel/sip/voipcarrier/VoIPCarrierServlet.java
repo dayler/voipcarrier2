@@ -5,6 +5,13 @@
 
 package com.nuevatel.sip.voipcarrier;
 
+import java.util.concurrent.ScheduledExecutorService;
+import com.nuevatel.cf.appconn.CFIE;
+import com.nuevatel.cf.appconn.Action;
+import com.nuevatel.base.appconn.Message;
+import com.nuevatel.cf.appconn.CFIE.WATCH_TYPE;
+import com.nuevatel.cf.appconn.Type;
+import com.nuevatel.sip.voipcarrier.listener.VoIPCarrierListener;
 import javax.servlet.sip.SipSessionEvent;
 import javax.servlet.sip.SipSessionListener;
 import com.nuevatel.base.appconn.AppClient;
@@ -19,11 +26,12 @@ import com.nuevatel.sip.SipCommand;
 import com.nuevatel.sip.SipHeaders;
 import com.nuevatel.sip.exception.IllegalValueException;
 import com.nuevatel.sip.voipcarrier.helper.ConfigHelper;
+import com.nuevatel.sip.voipcarrier.listener.WatchReportRetEventResponse;
+import com.nuevatel.sip.voipcarrier.listener.EventListenerResponseSet;
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileNotFoundException;
 import java.io.IOException;
-import java.io.Serializable;
 import java.math.BigDecimal;
 import java.util.Date;
 import java.util.Iterator;
@@ -49,6 +57,13 @@ import javax.servlet.sip.TooManyHopsException;
 import javax.servlet.sip.UAMode;
 import javax.servlet.sip.URI;
 import org.apache.log4j.Logger;
+import com.nuevatel.cf.appconn.Id;
+import com.nuevatel.cf.appconn.WatchArg;
+import com.nuevatel.cf.appconn.WatchReportCall;
+import com.nuevatel.sip.voipcarrier.worker.KillCallSessionWorker;
+import java.math.RoundingMode;
+import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
 import static com.nuevatel.common.helper.ClassHelper.*;
 import static com.nuevatel.sip.voipcarrier.helper.VoipConstants.*;
 
@@ -142,6 +157,11 @@ public class VoIPCarrierServlet extends SipServlet
     private boolean isNotEnableTestMode = false;
 
     /**
+     *Executor thread used to execute schedules tasks.
+     */
+    private ScheduledExecutorService executorService = Executors.newScheduledThreadPool(10);
+
+    /**
      * Factory for the timers.
      */
     @Resource
@@ -155,7 +175,7 @@ public class VoIPCarrierServlet extends SipServlet
     public void init(ServletConfig config) throws ServletException {
         super.init(config);
 
-        logger.trace("Executing init method");
+        logger.info("Executing init method");
 
         try{
 
@@ -181,7 +201,6 @@ public class VoIPCarrierServlet extends SipServlet
             appClientProperties = loadProperties(appClientPropPath);
 
             TaskSet taskSet = new TaskSet();
-            taskSet.add(CFMessage.TEST_SESSION_CALL, new TestSessionCallTask());
             taskSet.add(CFMessage.SET_SESSION_CALL, new SetSessionCallTask());
 
             // Load all properties for voipcarrier, in serverlet context variables.
@@ -212,8 +231,12 @@ public class VoIPCarrierServlet extends SipServlet
     @Override
     public void destroy(){
         try{
-            logger.trace("It is detroying.");
+            logger.info("It is detroying.");
             appClient.interrupt();
+
+            if (executorService != null && !executorService.isShutdown()) {
+                executorService.shutdown();
+            }
 
         } catch(Exception ex) {
             logger.error("When the appClient was interrupted.", ex);
@@ -226,7 +249,7 @@ public class VoIPCarrierServlet extends SipServlet
      */
     @Override
     protected void doRequest (SipServletRequest request) throws IOException, ServletException{
-        logger.trace(String.format("doRequest is executing. Session ID: %s Method: %s",
+        logger.info(String.format("doRequest is executing. Session ID: %s Method: %s",
                 request.getSession().getId(), request.getMethod()));
 
         Call call = getCall(request);
@@ -260,10 +283,10 @@ public class VoIPCarrierServlet extends SipServlet
     @Override
     protected void doResponse (SipServletResponse response) throws IOException, ServletException{
         SipSession session = response.getSession();
-        logger.trace(String.format("doResponse is executing. Session ID: %s command: %s Response Status: %d",
+        logger.info(String.format("doResponse is executing. Session ID: %s command: %s Response Status: %d",
                 session.getId(), response.getMethod(), response.getStatus()));
 
-        // TODO Instead call object just set the call id, and get the call instance usign cahehandler
+        // Instead call object just set the call id, and get the call instance usign cahehandler
         Call call = (Call)response.getApplicationSession().getAttribute("call");
         int responseStatus = response.getStatus();
 
@@ -279,6 +302,7 @@ public class VoIPCarrierServlet extends SipServlet
             B2buaHelper b2b = response.getRequest().getB2buaHelper();
             SipSession linked = b2b.getLinkedSession(session);
             SipServletResponse other = null;
+
             if (responseStatus > SipServletResponse.SC_OK) {
                 //final response. cut call
                 call.setEndType(responseStatus);
@@ -289,16 +313,18 @@ public class VoIPCarrierServlet extends SipServlet
                         session.getCallId(), session.getId()));
                 super.doResponse(response);
             }
+
             if (response.getRequest().isInitial()) {
                 // Handled separately due to possibility of forking and multiple SIP 200 OK responses
                 other = b2b.createResponseToOriginalRequest(linked, responseStatus, response.getReasonPhrase());
-            }
-            else if (responseStatus != SipServletResponse.SC_NOT_FOUND && linked!=null) {
+
+            } else if (responseStatus != SipServletResponse.SC_NOT_FOUND && linked!=null) {
                 //Other responses than to initial request
                 SipServletRequest otherReq = b2b.getLinkedSipServletRequest(response.getRequest());
                 other = otherReq.createResponse(responseStatus,response.getReasonPhrase());
 
             }
+
             if (other != null) {
                 copyContent(response, other);
                 copyHeaders(response, other);
@@ -309,8 +335,7 @@ public class VoIPCarrierServlet extends SipServlet
                     }catch (Exception ex){
                         logger.error("SipServletResponse can not be send reliably", ex);
                     }
-                }
-                else {
+                } else {
                     other.send();
                 }
             }
@@ -323,7 +348,7 @@ public class VoIPCarrierServlet extends SipServlet
      */
     @Override
     protected void doInvite (SipServletRequest request) throws IOException, TooManyHopsException{
-        logger.trace(String.format("doInvite is executing. Session ID: %s", request.getSession().getId()));
+        logger.info(String.format("doInvite is executing. Session ID: %s", request.getSession().getId()));
         URI caller = request.getFrom().getURI();
         URI callee = request.getTo().getURI();
 
@@ -391,7 +416,7 @@ public class VoIPCarrierServlet extends SipServlet
      */
     @Override
     protected void doAck(SipServletRequest request) throws IOException{
-        logger.trace(String.format("doAck is executing. Session ID: %s", request.getSession().getId()));
+        logger.info(String.format("doAck is executing. Session ID: %s", request.getSession().getId()));
 
         B2buaHelper b2b = request.getB2buaHelper();
         SipSession ss = b2b.getLinkedSession(request.getSession());
@@ -411,16 +436,42 @@ public class VoIPCarrierServlet extends SipServlet
                     if (response.getRequest().isInitial()) {
                         Call call = getCall(request);
 
-                        //call.setStartDate(new Date());
-                        call.setStatus(Call.CALL_STARTED);
+                        EventListenerResponseSet responseSet = call.setStatus(Call.CALL_STARTED);
+                        WatchReportRetEventResponse eventResponse =
+                                castAs(WatchReportRetEventResponse.class,
+                                responseSet.getEventResponse(VoIPCarrierListener.LISTENER_NAME, Call.CALL_STARTED));
 
-                        // Initialize the timmer.
-                        startServletTimmer(request.getApplicationSession(), 20000, 20000,
-                                request.getSession().getId(), request.getSession());
+                        Integer watchPeriod = eventResponse.getWatchPeriod();
+                        Integer watchOffset = eventResponse.getWatchOffset();
+
+                        if (watchOffset != null) {
+                            scheduleEndCallTask(call, watchOffset);
+                        } else if (watchPeriod != null) {
+                            // Start servlet timer.
+                            startServletTimmer(watchPeriod, request);
+                        } else {
+                            // Log something and kill session.
+                            logger.error(String.format("WatchReportRetEventResponse was not return."
+                                    + " The call %s will be terminated.", call.getCallID()));
+                            call.kill();
+                        }
                     }
                 }
             }
         }
+    }
+
+    /**
+     * Schedule end call task.
+     *
+     * @param call The call to end.
+     * @param watchOffset Time in milliseconds to wait before to end call.
+     */
+    private void scheduleEndCallTask(Call call, Integer watchOffset) {
+        // Schedule kill task
+        KillCallSessionWorker worker = new KillCallSessionWorker(call);
+        long watchOffsetLong = new Long(watchOffset);
+        executorService.schedule(worker, watchOffsetLong, TimeUnit.MILLISECONDS);
     }
 
     /**
@@ -429,7 +480,7 @@ public class VoIPCarrierServlet extends SipServlet
      */
     @Override
     protected void doCancel(SipServletRequest request) throws IOException{
-        logger.trace(String.format("doCancel is executing. Session ID: %s", request.getSession().getId()));
+        logger.info(String.format("doCancel is executing. Session ID: %s", request.getSession().getId()));
 
         Call call = (Call)request.getApplicationSession().getAttribute("call");
         call.setStatus(Call.CALL_CANCELLED);
@@ -449,7 +500,7 @@ public class VoIPCarrierServlet extends SipServlet
      */
     @Override
     protected void doErrorResponse(SipServletResponse response) throws ServletException, IOException {
-        logger.trace(String.format("doErrorResponse is executing. Session ID: %s", response.getSession().getId()));
+        logger.info(String.format("doErrorResponse is executing. Session ID: %s", response.getSession().getId()));
         // TODO Test if call can be retrieved.
         // Stop timmer
         Call call = getCall(response);
@@ -464,7 +515,7 @@ public class VoIPCarrierServlet extends SipServlet
      */
     @Override
     protected void doBye(SipServletRequest request) throws ServletException, IOException {
-        logger.trace(String.format("doBye is executing. Session ID: %s", request.getSession().getId()));
+        logger.info(String.format("doBye is executing. Session ID: %s", request.getSession().getId()));
 
         Call call = getCall(request);
         call.setEndType(SipServletResponse.SC_OK);
@@ -506,6 +557,57 @@ public class VoIPCarrierServlet extends SipServlet
     public void sessionReadyToInvalidate(SipSessionEvent arg0) {
         // No op.
         logger.trace("Session ready to invalidate.");
+    }
+
+    /**
+     * Execute WatchReportCall, it is used to notify to cf the time it is taking the call.
+     *
+     * @param call Call in progress.
+     * @param timeSpan Time to notify.
+     */
+    private void doWatchReportCall(Call call, BigDecimal timeSpan) {
+        logger.info("Execute doWatchReportCall");
+
+        Id id = new Id(call.getCallID(), null);
+        long watchArg1 = 0l;
+        int timeSpanIntValue =
+                timeSpan.setScale(0).divide(FIX_MILLISECONDS_FACTOR,
+                RoundingMode.HALF_UP).intValueExact();
+        WatchArg watchArg = new WatchArg(timeSpanIntValue, watchArg1, null, null, null, null);
+        WATCH_TYPE typeTimeWatch = Type.WATCH_TYPE.A_TIME_WATCH;
+        WatchReportCall resportCall =
+                new WatchReportCall(id, typeTimeWatch.getType(), null, watchArg);
+
+        try {
+            // Notify to cf.
+            Message watchReportRet = appClient.dispatch(resportCall.toMessage());
+            Action action = new Action(watchReportRet.getIE(CFIE.ACTION_IE));
+            logger.info(String.format(String.format("Session Action: %s", action.getSessionAction().name())));
+
+            if (Action.SESSION_ACTION.END == action.getSessionAction()) {
+                // If action is end. Kill the call.
+                call.kill();
+                logger.info(String.format("Call: %s was killed.", call.getCallID()));
+            } else {
+
+                // Look into watch report rep.
+                WatchReportRetEventResponse watchEventResponse = new WatchReportRetEventResponse(watchReportRet);
+
+                if (watchEventResponse.getWatchOffset() != null) {
+                    // Schedule kill call.
+                    scheduleEndCallTask(call, watchEventResponse.getWatchOffset());
+                }
+
+                logger.info(String.format(
+                        "watchReportCall: callId:%s watchType:%s watchTimeValue:%d watchArg1:%d result:%s",
+                        call.getCallID(), typeTimeWatch.name(), timeSpanIntValue, watchArg1,
+                        action.getSessionAction().name()));
+            }
+        } catch (Exception ex) {
+            logger.error("Occurred while WatchReportCall is executing", ex);
+
+            call.setStatus(Call.CALL_KILLED);
+        }
     }
 
     /**
@@ -743,7 +845,8 @@ public class VoIPCarrierServlet extends SipServlet
      */
     @Override
     public void timeout(ServletTimer sTimer) {
-        // TODO Here is the code to notify the appcon with the delta time.
+        logger.trace("Time out is firing");
+
         SipApplicationSession applicationSession = sTimer.getApplicationSession();
         SipSession session = applicationSession.getSipSession((String) sTimer.getInfo());
 
@@ -751,28 +854,48 @@ public class VoIPCarrierServlet extends SipServlet
             Call call = getCall(applicationSession);
             BigDecimal timeSpan = getCallTimeSpan(call);
 
-            logger.debug(String.format(
+            logger.info(String.format(
                     "Time elapsed in milleseconds: %f for the call: %s ",
                     timeSpan.doubleValue(), session.getCallId()));
+
+            // Repoprt to VONE.
+            doWatchReportCall(call, timeSpan);
+
         } else {
             logger.debug(String.format("session: %s does not exist.", (String) sTimer.getInfo()));
             sTimer.cancel();
-            // TODO Log something
         }
     }
 
-    private void startServletTimmer(SipApplicationSession applicationSession,
-                                    long startTime,
-                                    long period,
-                                    Serializable srlzblInfo,
-                                    SipSession session) {
-        sTimer = tService.createTimer(applicationSession, startTime, period, true, false, srlzblInfo);
+    /**
+     * Initialize the timer responsible to do the periodical notification to the cf.
+     *
+     * @param watchPeriod Period on milliseconds.
+     * @param request 
+     */
+    private void startServletTimmer(Integer watchPeriod, SipServletRequest request) {
+        if (watchPeriod != null) {
+            SipSession session = request.getSession();
+            // Start timer
+            sTimer = tService.createTimer(request.getApplicationSession(),
+                    0, // Start time
+                    watchPeriod, // Period
+                    true,
+                    false,
+                    session.getId()); // Serializable info.
 
-        logger.info(String.format(
-                "Servlet Timer was created. Session ID: %s Call ID: %s Start Time: %s Period: %s",
-                session.getId(), session.getCallId(), startTime, period));
+            logger.info(String.format(
+                    "Servlet Timer was created. Session ID: %s Call ID: %s Start Time: %s Period: %s",
+                    session.getId(), session.getCallId(), watchPeriod, watchPeriod));
+        }
     }
 
+    /**
+     * Interrupt the timer, it is used when the call was stop
+     *
+     * @param call Call in progress.
+     * @param session Sip session.
+     */
     private void stopServletTimer(Call call, SipSession session) {
 
         BigDecimal timeSpan = BigDecimal.ZERO;

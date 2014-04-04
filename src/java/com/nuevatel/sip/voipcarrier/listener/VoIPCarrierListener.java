@@ -2,9 +2,10 @@
  * To change this template, choose Tools | Templates
  * and open the template in the editor.
  */
-package com.nuevatel.sip.voipcarrier;
+package com.nuevatel.sip.voipcarrier.listener;
 
 import com.nuevatel.base.appconn.AppClient;
+import com.nuevatel.cf.appconn.CFIE.WATCH_TYPE;
 import javax.servlet.sip.SipServletResponse;
 import javax.servlet.sip.SipURI;
 import com.nuevatel.base.appconn.Message;
@@ -20,8 +21,15 @@ import com.nuevatel.cf.appconn.SessionArg;
 import com.nuevatel.cf.appconn.Type;
 import com.nuevatel.cf.appconn.WatchArg;
 import com.nuevatel.cf.appconn.WatchReportCall;
+import com.nuevatel.common.helper.Parameters;
+import com.nuevatel.sip.voipcarrier.Call;
+import com.nuevatel.sip.voipcarrier.ConversationEvent;
+import com.nuevatel.sip.voipcarrier.EventListener;
+import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.util.Date;
 import org.apache.log4j.Logger;
+import static com.nuevatel.sip.voipcarrier.helper.VoipConstants.*;
 
 /**
  *
@@ -34,6 +42,8 @@ public class VoIPCarrierListener implements EventListener {
      */
     private final static Logger logger = Logger.getLogger(VoIPCarrierListener.class);
 
+    public final static String LISTENER_NAME = VoIPCarrierListener.class.getName();
+
     private String cellGlobalId;
     private Integer carrierPrefixSize;
     private String hubbingPrefix;
@@ -44,7 +54,9 @@ public class VoIPCarrierListener implements EventListener {
         this.hubbingPrefix = hubbingPrefix;
     }
 
-    public void eventReceived(ConversationEvent event) throws Exception {
+    public void eventReceived(ConversationEvent event, EventListenerResponseSet responseSet) throws Exception {
+        Parameters.checkNull(responseSet, "responseSet");
+
         Call call = (Call) event.getSource();
         AppClient appClient = call.getAppClient();
 
@@ -96,7 +108,7 @@ public class VoIPCarrierListener implements EventListener {
             } else {
                 tmpReference = call.getInitialRequest().getCallId();
             }
-//            SessionArg sessionArg = new SessionArg(fromName, toName, null, null, tmpReference);
+
             SessionArg sessionArg = new SessionArg(fromName, toName, null, null, null, tmpReference);
 
             logger.trace("TODO sessionArgas: " + fromName + " " + toName + "null null null " + tmpReference);
@@ -108,19 +120,29 @@ public class VoIPCarrierListener implements EventListener {
                 Message newSessionRet = appClient.dispatch(newSessionCall.toMessage());
                 Action action = new Action(newSessionRet.getIE(CFIE.ACTION_IE));
 
+                // TODO
+                /****************/
+//                CallInitializedEventResponse evResponse = new CallInitializedEventResponse(newSessionRet);
+//                System.out.println(evResponse.getWatchPeriod());
+                /****************/
+
                 if (action.getSessionAction() == Action.SESSION_ACTION.ACCEPT) {
                     /*Modify the callee, ie. sip:59170700002@domain1.com:51056 from  sip:267659170700002@domain2.com:5060*/
                     String newCallee = null;
                     newCallee = "sip:" + ((SipURI) call.getCallee()).getUser().substring(4) + "@" + ((SipURI) call.getCaller()).getHost() + ":" + ((SipURI) call.getCaller()).getPort();
+
                     if (((SipURI) call.getCaller()).getHost().contains("anonymous") || ((SipURI) call.getCaller()).getHost() == null) {
                         newCallee = "sip:" + ((SipURI) call.getCallee()).getUser().substring(4) + "@" + call.getRemoteHost() + ":" + call.getRemotePort();
                     }
+
                     if (((SipURI) call.getRURI()).getUserParam() != null) {
                         newCallee += ";user=" + ((SipURI) call.getRURI()).getUserParam();
                     }
+
                     if (((SipURI) call.getRURI()).getTransportParam() != null) {
                         newCallee += ";transport=" + ((SipURI) call.getRURI()).getTransportParam();
                     }
+
                     call.setCallee(newCallee);
 
                 } else {
@@ -160,6 +182,9 @@ public class VoIPCarrierListener implements EventListener {
 
             try {
                 Message eventReportRet = appClient.dispatch(eventReportCall.toMessage());
+                WatchReportRetEventResponse eventResponse = new WatchReportRetEventResponse(eventReportRet);
+                responseSet.addEventResponse(LISTENER_NAME, Call.CALL_STARTED, eventResponse);
+
                 Action action = new Action(eventReportRet.getIE(CFIE.ACTION_IE));
 
                 if (action.getSessionAction() == Action.SESSION_ACTION.ACCEPT) {
@@ -216,30 +241,31 @@ public class VoIPCarrierListener implements EventListener {
                             call.getCallID(), eventType), ex);
                 }
 
-                Integer endValue = 0;
+                BigDecimal endValue = BigDecimal.ZERO;
 
                 if (call.getEndDate() != null && call.getStartDate() != null) {
-                    endValue = (int) (call.getEndDate().getTime() - call.getStartDate().getTime());
+                    //endValue = (int) (call.getEndDate().getTime() - call.getStartDate().getTime());
+                    endValue =
+                            new BigDecimal(call.getEndDate().getTime() - call.getStartDate().getTime()).setScale(0).divide(
+                            FIX_MILLISECONDS_FACTOR, RoundingMode.HALF_UP);
                 }
 
                 long watchArg1 = 0l;
-                WatchArg watchArg = new WatchArg(endValue, watchArg1, null, null, null, null);
-                WatchReportCall watchReportCall = new WatchReportCall(id, Type.WATCH_TYPE.TIME_WATCH.getType(), null, watchArg);
+                WatchArg watchArg = new WatchArg(endValue.intValueExact(), watchArg1, null, null, null, null);
+                WATCH_TYPE typeTimeWatch = Type.WATCH_TYPE.TIME_WATCH;
+                WatchReportCall watchReportCall = new WatchReportCall(id, typeTimeWatch.getType(), null, watchArg);
 
                 try {
                     Message watchReportRet = appClient.dispatch(watchReportCall.toMessage());
                     Action action = new Action(watchReportRet.getIE(CFIE.ACTION_IE));
 
-                    // TODO **
-                    // call.setEndDate(new Date());
-
                     logger.info(String.format(
-                            "watchReportCall: callId:%s watchType:%d endValue:%d watchArg1:%d result:%s",
-                            call.getCallID(), Type.WATCH_TYPE.TIME_WATCH.getType(), endValue, watchArg1, action.getSessionAction().name()));
+                            "watchReportCall: callId:%s watchType:%s endValue:%d watchArg1:%d result:%s",
+                            call.getCallID(), typeTimeWatch.name(), endValue, watchArg1, action.getSessionAction().name()));
                 } catch (Exception ex) {
                     logger.warn(String.format(
-                            "watchReportCall Exception: callId:%s watchType:%d %s",
-                            call.getCallID(), Type.WATCH_TYPE.TIME_WATCH.getType(), ex.getMessage()));
+                            "watchReportCall Exception: callId:%s watchType:%s %s",
+                            call.getCallID(), typeTimeWatch.name(), ex.getMessage()));
                 }
             }
         } else if (call.getStatus() == Call.CALL_KILLED) {

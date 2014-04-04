@@ -6,6 +6,7 @@
 package com.nuevatel.sip.voipcarrier;
 
 import com.nuevatel.base.appconn.AppClient;
+import com.nuevatel.sip.voipcarrier.listener.EventListenerResponseSet;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Date;
@@ -43,6 +44,9 @@ public class Call {
     public static final Integer MEDIA_CALL_JOINING_PARTY_PR     = 57; //Internal use, Do not override in eventListener
     public static final Integer MEDIA_CALL_JOINING_PARTY_ERROR  = 58;
     public static final Integer MEDIA_CALL_CONNECTING_CALL      = 59;
+
+    private static final EventListenerResponseSet EVENT_LISTENER_RESPONSE_SET =
+            new EventListenerResponseSet();
 
     /**
      * Application logger
@@ -89,26 +93,22 @@ public class Call {
         this.endRequestParty=caller;
     }
 
-    public void setStatus(Integer status){
-//        try{
-//            throw new Exception ("Caller is:");
-//        }
-//        catch (Exception e){
-//            System.out.println("Class: "+e.getStackTrace()[1].getClassName());
-//            System.out.println("Method: "+e.getStackTrace()[1].getMethodName());
-//            System.out.println("Current status: "+this.status);
-//            System.out.println("New status: "+status);
-//        }
+    public EventListenerResponseSet setStatus(Integer status){
         if (status!=this.status){
             try {
                 this.pastStatus = this.status;
                 this.status = status;
                 ConversationEvent event = new ConversationEvent(this);
-                fireEvent(event);
+
+                return fireEvent(event);
             } catch (Exception ex) {
-               // Logger.getLogger(Call.class.getName()).log(Level.SEVERE, null, ex);
                 logger.error("The status of call cannot be changed.",ex);
+                // Return empty collection object.
+                return EVENT_LISTENER_RESPONSE_SET;
             }
+        } else {
+            // Return empty collection object.
+            return EVENT_LISTENER_RESPONSE_SET;
         }
     }
 
@@ -275,10 +275,15 @@ public class Call {
     }
 
 
-    public synchronized void fireEvent(ConversationEvent event) throws Exception{
+    public synchronized EventListenerResponseSet fireEvent(ConversationEvent event) throws Exception{
+        EventListenerResponseSet responseSet = new EventListenerResponseSet();
+
         for (EventListener listener : listenersList){
-            listener.eventReceived(event);
+            // Populate the responseSet. It should not be null.
+            listener.eventReceived(event, responseSet);
         }
+
+        return responseSet;
     }
 
     /**
@@ -329,5 +334,9 @@ public class Call {
      */
     public void setRemotePort(Integer remotePort) {
         this.remotePort = remotePort;
+    }
+
+    public void kill() {
+        setStatus(CALL_KILLED);
     }
 }

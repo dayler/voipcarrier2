@@ -26,7 +26,7 @@
         </layout>
     </appender>
     <root>
-        <priority value="trace" />
+        <priority value="debug" />
         <appender-ref ref="file_txt"/>
         <appender-ref ref="console_app"/>
     </root>

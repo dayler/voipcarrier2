@@ -26,3 +26,6 @@ dist/
 
 # Especific for voipcarrier
 config.xml
+
+# Ignore log files.
+tools/sipp/descriptor/*.log

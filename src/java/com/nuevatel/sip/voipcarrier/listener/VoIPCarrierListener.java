@@ -260,12 +260,12 @@ public class VoIPCarrierListener implements EventListener {
                     Action action = new Action(watchReportRet.getIE(CFIE.ACTION_IE));
 
                     logger.info(String.format(
-                            "watchReportCall: callId:%s watchType:%s endValue:%d watchArg1:%d result:%s",
-                            call.getCallID(), typeTimeWatch.name(), endValue, watchArg1, action.getSessionAction().name()));
+                            "watchReportCall: callId:%s watchType:%s endValue:%d watchArg1:%s result:%s",
+                            call.getCallID(), typeTimeWatch.name(), endValue.intValue(), watchArg1, action.getSessionAction().name()));
                 } catch (Exception ex) {
                     logger.warn(String.format(
-                            "watchReportCall Exception: callId:%s watchType:%s %s",
-                            call.getCallID(), typeTimeWatch.name(), ex.getMessage()));
+                            "watchReportCall Exception: callId:%s watchType:%s",
+                            call.getCallID(), typeTimeWatch.name()), ex);
                 }
             }
         } else if (call.getStatus() == Call.CALL_KILLED) {

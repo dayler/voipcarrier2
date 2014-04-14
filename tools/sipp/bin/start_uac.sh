@@ -30,13 +30,13 @@ ACTIVE_LOG=1
 CSV_FILE=call.csv
 
 # Quantity of simultaneous calls
-L=2
+L=5
 
 # Quantity of calls to be executed
-M=5
+M=400
 
 # Duration call, in milliseconds
-CALL_DELAY=30000
+CALL_DELAY=300000
 
 if [ $ACTIVE_LOG  = 1 ];
 then

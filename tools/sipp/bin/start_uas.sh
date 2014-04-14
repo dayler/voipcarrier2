@@ -33,7 +33,7 @@ CSV_FILE=call.csv
 L=10
 
 # Quantity of calls to be executed
-M=25
+M=1000
 
 if [ $ACTIVE_LOG  = 1 ];
 then

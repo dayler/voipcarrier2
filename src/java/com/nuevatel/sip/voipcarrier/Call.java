@@ -94,6 +94,8 @@ public class Call {
     }
 
     public EventListenerResponseSet setStatus(Integer status){
+        logger.info(String.format("Call set status: %s", status.toString()));
+
         if (status!=this.status){
             try {
                 this.pastStatus = this.status;
@@ -195,21 +197,26 @@ public class Call {
 
     public void end(Integer statusCode){
         this.setStatus(Call.CALL_ENDED);
-        if (getPastStatus()==Call.CALL_INITIALIZED){
+
+        if (getPastStatus()==Call.CALL_INITIALIZED) {
             try {
                 initialRequest.createResponse(statusCode).send();
             } catch (IOException ex) {
                 logger.error("InitialRequest cannot create a response. ", ex);
             }
-        }
-        else if (getPastStatus() == Call.CALL_STARTED || getPastStatus() == Call.CALL_KILLED || getPastStatus() >= Call.MEDIA_CALL_INITIALIZED){
+        } else if (getPastStatus() == Call.CALL_STARTED
+                || getPastStatus() == Call.CALL_KILLED
+                || getPastStatus() >= Call.MEDIA_CALL_INITIALIZED){
 
             Iterator i = initialRequest.getApplicationSession().getSessions();
-            while (i.hasNext()){
+
+            while (i.hasNext()) {
                 Object o = i.next();
+
                 if (o instanceof SipSession){
                     SipSession ss = (SipSession)o;
                     SipServletRequest bye = ss.createRequest("BYE");
+
                     try {
                         ss.setHandler("EndSessionServlet");
                         bye.send();
@@ -222,8 +229,10 @@ public class Call {
                 }
             }
         }
+
         CacheHandler.getCacheHandler().getCallsMap().remove(id);
     }
+
     public void setEndRequestParty(URI endRequestParty){
         this.endRequestParty=endRequestParty;
     }
@@ -336,7 +345,7 @@ public class Call {
         this.remotePort = remotePort;
     }
 
-    public void kill() {
-        setStatus(CALL_KILLED);
+    public void endCall() {
+        setStatus(CALL_ENDED);
     }
 }

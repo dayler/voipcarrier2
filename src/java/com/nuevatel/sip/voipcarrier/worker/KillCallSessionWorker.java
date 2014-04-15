@@ -7,6 +7,7 @@ package com.nuevatel.sip.voipcarrier.worker;
 
 import com.nuevatel.common.helper.Parameters;
 import com.nuevatel.sip.voipcarrier.Call;
+import javax.servlet.sip.SipServletResponse;
 import org.apache.log4j.Logger;
 
 /**
@@ -28,7 +29,7 @@ public class KillCallSessionWorker implements Runnable {
     public void run() {
         logger.info("Callback is executing.");
 
-        call.kill();
+        call.end(SipServletResponse.SC_REQUEST_TERMINATED);
 
         logger.info(String.format("Call: %s was killed.", call.getCallID()));
     }

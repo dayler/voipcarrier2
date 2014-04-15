@@ -444,6 +444,10 @@ public class VoIPCarrierServlet extends SipServlet
                         Integer watchPeriod = eventResponse.getWatchPeriod();
                         Integer watchOffset = eventResponse.getWatchOffset();
 
+                        logger.info("WatchReportRetEventResponse was recived:");
+                        logger.info(String.format("watchPeriod: %s", watchPeriod));
+                        logger.info(String.format("watchOffset: %s", watchOffset));
+
                         if (watchOffset != null) {
                             scheduleEndCallTask(call, watchOffset);
                         } else if (watchPeriod != null) {
@@ -453,7 +457,7 @@ public class VoIPCarrierServlet extends SipServlet
                             // Log something and kill session.
                             logger.error(String.format("WatchReportRetEventResponse was not return."
                                     + " The call %s will be terminated.", call.getCallID()));
-                            call.kill();
+                            call.endCall();
                         }
                     }
                 }
@@ -469,6 +473,7 @@ public class VoIPCarrierServlet extends SipServlet
      */
     private void scheduleEndCallTask(Call call, Integer watchOffset) {
         // Schedule kill task
+        logger.info(String.format("Kill call worker will end the call on: %s milliseconds", watchOffset));
         KillCallSessionWorker worker = new KillCallSessionWorker(call);
         long watchOffsetLong = new Long(watchOffset);
         executorService.schedule(worker, watchOffsetLong, TimeUnit.MILLISECONDS);
@@ -571,8 +576,7 @@ public class VoIPCarrierServlet extends SipServlet
         Id id = new Id(call.getCallID(), null);
         long watchArg1 = 0l;
         int timeSpanIntValue =
-                timeSpan.setScale(0).divide(FIX_MILLISECONDS_FACTOR,
-                RoundingMode.HALF_UP).intValueExact();
+                timeSpan.setScale(0).divide(FIX_MILLISECONDS_FACTOR, RoundingMode.HALF_UP).intValueExact();
         WatchArg watchArg = new WatchArg(timeSpanIntValue, watchArg1, null, null, null, null);
         WATCH_TYPE typeTimeWatch = Type.WATCH_TYPE.A_TIME_WATCH;
         WatchReportCall resportCall =
@@ -586,7 +590,7 @@ public class VoIPCarrierServlet extends SipServlet
 
             if (Action.SESSION_ACTION.END == action.getSessionAction()) {
                 // If action is end. Kill the call.
-                call.kill();
+                call.endCall();
                 logger.info(String.format("Call: %s was killed.", call.getCallID()));
             } else {
 
@@ -878,7 +882,7 @@ public class VoIPCarrierServlet extends SipServlet
             SipSession session = request.getSession();
             // Start timer
             sTimer = tService.createTimer(request.getApplicationSession(),
-                    0, // Start time
+                    watchPeriod, // Start time
                     watchPeriod, // Period
                     true,
                     false,

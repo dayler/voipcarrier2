@@ -25,5 +25,5 @@ public class VoipConstants {
      */
     public static final String ROOT_PATH = "/";
 
-    public static final BigDecimal FIX_MILLISECONDS_FACTOR = new BigDecimal(10);
+    public static final BigDecimal FIX_MILLISECONDS_FACTOR = new BigDecimal(100);
 }

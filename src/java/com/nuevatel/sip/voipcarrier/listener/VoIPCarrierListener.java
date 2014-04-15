@@ -244,7 +244,6 @@ public class VoIPCarrierListener implements EventListener {
                 BigDecimal endValue = BigDecimal.ZERO;
 
                 if (call.getEndDate() != null && call.getStartDate() != null) {
-                    //endValue = (int) (call.getEndDate().getTime() - call.getStartDate().getTime());
                     endValue =
                             new BigDecimal(call.getEndDate().getTime() - call.getStartDate().getTime()).setScale(0).divide(
                             FIX_MILLISECONDS_FACTOR, RoundingMode.HALF_UP);

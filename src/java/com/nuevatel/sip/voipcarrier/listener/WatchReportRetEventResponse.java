@@ -10,6 +10,7 @@ import com.nuevatel.base.appconn.Message;
 import com.nuevatel.cf.appconn.CFIE;
 import com.nuevatel.cf.appconn.WatchArg;
 import com.nuevatel.common.helper.Parameters;
+import static com.nuevatel.sip.voipcarrier.helper.VoipConstants.*;
 
 /**
  * Event response for WatchEventReportCall.
@@ -17,11 +18,6 @@ import com.nuevatel.common.helper.Parameters;
  * @author asalazar
  */
 public class WatchReportRetEventResponse implements EventResponse {
-
-    /**
-     * Factor to transform seg/10 to milliseconds.
-     */
-    private static final int MILLISECONDS_FIX_FACTOR = 10;
 
     /**
      * Period for executing watch report call. It is in milliseconds. if it is null indicates that
@@ -47,10 +43,10 @@ public class WatchReportRetEventResponse implements EventResponse {
         WatchArg watchArg = new WatchArg(rawWatchArg);
 
         Integer watchArg0 = watchArg.getWatchArg0();
-        watchPeriod = watchArg0 == null ? null : watchArg0 * MILLISECONDS_FIX_FACTOR;
+        watchPeriod = watchArg0 == null ? null : watchArg0 * FIX_MILLISECONDS_FACTOR.intValueExact();
 
         Integer watchArg5 = watchArg.getWatchArg5();
-        watchOffset = watchArg5 == null ? null : watchArg5 * MILLISECONDS_FIX_FACTOR;
+        watchOffset = watchArg5 == null ? null : watchArg5 * FIX_MILLISECONDS_FACTOR.intValueExact();
     }
 
     /**

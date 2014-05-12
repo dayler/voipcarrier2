@@ -11,4 +11,7 @@ Configuration file used to handle global properties for Application.
         <!-- Indicates if the application is running in test mode. It must to be disable for production -->
         <property name="enable-test-mode" type="boolean">true</property>
     </properties>
+    <exclude-sip-headers>
+        <sip-header>100rel</sip-header>
+    </exclude-sip-headers>
 </config>

@@ -60,10 +60,13 @@ import org.apache.log4j.Logger;
 import com.nuevatel.cf.appconn.Id;
 import com.nuevatel.cf.appconn.WatchArg;
 import com.nuevatel.cf.appconn.WatchReportCall;
+import com.nuevatel.common.helper.xml.XmlNode;
 import com.nuevatel.sip.voipcarrier.worker.KillCallSessionWorker;
 import java.math.RoundingMode;
+import java.util.ArrayList;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
+import javax.servlet.ServletContext;
 import static com.nuevatel.common.helper.ClassHelper.*;
 import static com.nuevatel.sip.voipcarrier.helper.VoipConstants.*;
 
@@ -83,6 +86,11 @@ public class VoIPCarrierServlet extends SipServlet
      * Path to get enable test mode property.
      */
     private static final String XPATH_ENABLE_TEST_MODE = "//config/properties/property[@name='enable-test-mode']/text()";
+
+    /**
+     * Path to get no headers supported list.
+     */
+    private static final String XPATH_NO_SUPORTED_SIP_HEADERS = "//exclude-sip-headers/sip-header";
 
     /**
      * Path to get the location of the voipcarrier configuration file.
@@ -162,6 +170,11 @@ public class VoIPCarrierServlet extends SipServlet
     private ScheduledExecutorService executorService = Executors.newScheduledThreadPool(10);
 
     /**
+     * Contains list of no supported headers.
+     */
+    public List<String> noSupportedHeaders = new ArrayList<String>();
+
+    /**
      * Factory for the timers.
      */
     @Resource
@@ -184,6 +197,8 @@ public class VoIPCarrierServlet extends SipServlet
             String voipCarrierPropPath = confXmlHash.getFirstNode(XPATH_VOIPCARRIER_PROPERTIES).getNodeValue();
             String appClientPropPath = confXmlHash.getFirstNode(XPATH_APPCLIENT_PROPERTIES).getNodeValue();
             isNotEnableTestMode = !Boolean.parseBoolean(confXmlHash.get(XPATH_ENABLE_TEST_MODE));
+
+            makeNoSupportedHeaderList(confXmlHash);
 
             if (StringHelper.isBlank(voipCarrierPropPath) || StringHelper.isBlank(appClientPropPath)) {
 
@@ -221,6 +236,22 @@ public class VoIPCarrierServlet extends SipServlet
 
         } catch(Throwable ex) {
             logger.error("The servlet cannot be initialized.", ex);
+        }
+    }
+
+    /**
+     * Make No supported headers list.
+     *
+     * @param confXmlHash Xml config.
+     */
+    private void makeNoSupportedHeaderList(XmlHash confXmlHash) {
+        // Make no supported headers list.
+        List<XmlNode> excludedHeadersNodes = confXmlHash.getNodeList(XPATH_NO_SUPORTED_SIP_HEADERS);
+
+        for (XmlNode node : excludedHeadersNodes) {
+            String nodeValue = node.getNodeValue();
+            noSupportedHeaders.add(nodeValue);
+            logger.trace(String.format("The header %s is not supported.", nodeValue));
         }
     }
 
@@ -657,6 +688,16 @@ public class VoIPCarrierServlet extends SipServlet
     }
 
     /**
+     *
+     * @param header Header to check.
+     *
+     * @return True if the header is not supported.
+     */
+    private boolean isNotSupportedHeader(String header) {
+        return noSupportedHeaders.contains(header);
+    }
+
+    /**
      * Copy a specific header from source servlet message to target.
      *
      * @param source Source Servlet Message.
@@ -667,14 +708,24 @@ public class VoIPCarrierServlet extends SipServlet
         int count = 0;
         String headerName = sipHeader.toString();
         String header = null;
+
         for (Iterator<String> iterator = source.getHeaders(headerName.toString()); iterator.hasNext();) {
             count++;
+
             String tmpHeader = iterator.next();
+
+            if (isNotSupportedHeader(tmpHeader)) {
+                // If header is not supported, exclude it
+                logger.debug(String.format("The header %s is not supported.", tmpHeader));
+                continue;
+            }
+
             if (header == null) {
                 header = tmpHeader;
             } else {
                 header += tmpHeader;
             }
+
             if (count > 0 && iterator.hasNext()) {
                 header += ", ";
             }

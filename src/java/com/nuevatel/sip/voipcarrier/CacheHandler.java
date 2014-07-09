@@ -5,7 +5,9 @@
 
 package com.nuevatel.sip.voipcarrier;
 
+import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.ScheduledThreadPoolExecutor;
 
 /**
@@ -23,6 +25,7 @@ public class CacheHandler {
 
     private ScheduledThreadPoolExecutor testSessionAsynRetPool = new ScheduledThreadPoolExecutor(2);
 
+    private Map<String, ScheduledFuture<?>> scheduledFutureMap = new ConcurrentHashMap<String, ScheduledFuture<?>>();
 
     private CacheHandler(){
         // No op.
@@ -44,5 +47,22 @@ public class CacheHandler {
     public ScheduledThreadPoolExecutor getTestSessionAsyncRetPool(){
         return testSessionAsynRetPool;
     }
-    
+
+    public ScheduledFuture<?> popScheduledFuture(String callId) {
+
+
+        if (scheduledFutureMap.containsKey(callId)) {
+            ScheduledFuture<?> schFuture = scheduledFutureMap.get(callId);
+            scheduledFutureMap.remove(callId);
+            return schFuture;
+        }
+
+        return null;
+    }
+
+    public void addScheduledFuture(String callId, ScheduledFuture<?> scheduledFuture) {
+        if (scheduledFuture != null) {
+            scheduledFutureMap.put(callId, scheduledFuture);
+        }
+    }
 }

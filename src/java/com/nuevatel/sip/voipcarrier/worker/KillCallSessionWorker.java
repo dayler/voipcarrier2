@@ -6,7 +6,9 @@
 package com.nuevatel.sip.voipcarrier.worker;
 
 import com.nuevatel.common.helper.Parameters;
+import com.nuevatel.sip.voipcarrier.CacheHandler;
 import com.nuevatel.sip.voipcarrier.Call;
+import java.util.concurrent.ScheduledFuture;
 import javax.servlet.sip.SipServletResponse;
 import org.apache.log4j.Logger;
 
@@ -28,6 +30,12 @@ public class KillCallSessionWorker implements Runnable {
 
     public void run() {
         logger.info("Callback is executing.");
+
+        ScheduledFuture<?> schFeture = CacheHandler.getCacheHandler().popScheduledFuture(call.getCallID());
+
+        if (schFeture != null) {
+            schFeture.cancel(true);
+        }
 
         call.end(SipServletResponse.SC_REQUEST_TERMINATED);
 

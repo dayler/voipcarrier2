@@ -37,7 +37,6 @@ import java.util.Date;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Properties;
-import javax.annotation.Resource;
 import javax.servlet.ServletConfig;
 import javax.servlet.ServletException;
 import javax.servlet.sip.B2buaHelper;
@@ -52,7 +51,6 @@ import javax.servlet.sip.SipSession;
 import javax.servlet.sip.SipSession.State;
 import javax.servlet.sip.SipURI;
 import javax.servlet.sip.TimerListener;
-import javax.servlet.sip.TimerService;
 import javax.servlet.sip.TooManyHopsException;
 import javax.servlet.sip.UAMode;
 import javax.servlet.sip.URI;
@@ -61,12 +59,13 @@ import com.nuevatel.cf.appconn.Id;
 import com.nuevatel.cf.appconn.WatchArg;
 import com.nuevatel.cf.appconn.WatchReportCall;
 import com.nuevatel.common.helper.xml.XmlNode;
+import com.nuevatel.sip.voipcarrier.worker.DoWatchReportSessionWorker;
 import com.nuevatel.sip.voipcarrier.worker.KillCallSessionWorker;
 import java.math.RoundingMode;
 import java.util.ArrayList;
 import java.util.concurrent.Executors;
+import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
-import javax.servlet.ServletContext;
 import static com.nuevatel.common.helper.ClassHelper.*;
 import static com.nuevatel.sip.voipcarrier.helper.VoipConstants.*;
 
@@ -155,11 +154,6 @@ public class VoIPCarrierServlet extends SipServlet
     private String anonymousMask;
 
     /**
-     * Servlet timer, execute periodical tasks to notify the status and duration of the calls.
-     */
-    private ServletTimer sTimer = null;
-
-    /**
      * True if test mode is not enabled.
      */
     private boolean isNotEnableTestMode = false;
@@ -167,18 +161,17 @@ public class VoIPCarrierServlet extends SipServlet
     /**
      *Executor thread used to execute schedules tasks.
      */
-    private ScheduledExecutorService executorService = Executors.newScheduledThreadPool(10);
+    private ScheduledExecutorService executorService = Executors.newScheduledThreadPool(16);
+
+    /**
+     * Used to schedule end task operation for each session.
+     */
+    private ScheduledExecutorService killSessionExecutorService = Executors.newScheduledThreadPool(16);
 
     /**
      * Contains list of no supported headers.
      */
     public List<String> noSupportedHeaders = new ArrayList<String>();
-
-    /**
-     * Factory for the timers.
-     */
-    @Resource
-    private TimerService tService;
 
     /**
      * {@inheritDoc}
@@ -483,7 +476,7 @@ public class VoIPCarrierServlet extends SipServlet
                             scheduleEndCallTask(call, watchOffset);
                         } else if (watchPeriod != null) {
                             // Start servlet timer.
-                            startServletTimmer(watchPeriod, request);
+                            scheduleDoWatchReport(call, watchPeriod, request);
                         } else {
                             // Log something and kill session.
                             logger.error(String.format("WatchReportRetEventResponse was not return."
@@ -527,7 +520,7 @@ public class VoIPCarrierServlet extends SipServlet
         cancel.send();
 
         // Stop timmer
-        stopServletTimer(call, request.getSession());
+        scheduleEndCallTask(call, 0);
     }
 
     /**
@@ -540,7 +533,7 @@ public class VoIPCarrierServlet extends SipServlet
         // TODO Test if call can be retrieved.
         // Stop timmer
         Call call = getCall(response);
-        stopServletTimer(call, response.getSession());
+        scheduleEndCallTask(call, 0);
 
         super.doErrorResponse(response);
     }
@@ -560,7 +553,7 @@ public class VoIPCarrierServlet extends SipServlet
         call.setStatus(Call.CALL_ENDED);
 
         // Stop timmer.
-        stopServletTimer(call, request.getSession());
+        scheduleEndCallTask(call, 0);
 
         super.doBye(request);
     }
@@ -922,49 +915,13 @@ public class VoIPCarrierServlet extends SipServlet
         }
     }
 
-    /**
-     * Initialize the timer responsible to do the periodical notification to the cf.
-     *
-     * @param watchPeriod Period on milliseconds.
-     * @param request 
-     */
-    private void startServletTimmer(Integer watchPeriod, SipServletRequest request) {
+    private void scheduleDoWatchReport(Call call, Integer watchPeriod, SipServletRequest request) {
         if (watchPeriod != null) {
             SipSession session = request.getSession();
-            // Start timer
-            sTimer = tService.createTimer(request.getApplicationSession(),
-                    watchPeriod, // Start time
-                    watchPeriod, // Period
-                    true,
-                    false,
-                    session.getId()); // Serializable info.
-
-            logger.info(String.format(
-                    "Servlet Timer was created. Session ID: %s Call ID: %s Start Time: %s Period: %s",
-                    session.getId(), session.getCallId(), watchPeriod, watchPeriod));
+            ScheduledFuture<?> schFuture = executorService.scheduleAtFixedRate(
+                    new DoWatchReportSessionWorker(call, appClient, killSessionExecutorService),
+                    watchPeriod, watchPeriod, TimeUnit.MILLISECONDS);
+            CacheHandler.getCacheHandler().addScheduledFuture(call.getCallID(), schFuture);
         }
-    }
-
-    /**
-     * Interrupt the timer, it is used when the call was stop
-     *
-     * @param call Call in progress.
-     * @param session Sip session.
-     */
-    private void stopServletTimer(Call call, SipSession session) {
-
-        BigDecimal timeSpan = BigDecimal.ZERO;
-
-        if (sTimer != null) {
-            sTimer.cancel();
-
-
-            timeSpan = getCallTimeSpan(call);
-        }
-
-        logger.info(String.format("Call TimeSpan: %f SessionID: %s CallID:%s",
-                    timeSpan.doubleValue(), session.getId(), session.getCallId()));
-            logger.info(String.format("Servlet Timer was canceled. Session ID: %s Call ID: %s",
-                    session.getId(), session.getCallId()));
     }
 }
